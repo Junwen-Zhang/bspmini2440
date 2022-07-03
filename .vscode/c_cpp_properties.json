@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:\\ACOINFO\\RealEvo\\compiler\\arm-sylixos-toolchain\\arm-sylixos-eabi\\include",
+                "C:\\ACOINFO\\RealEvo\\compiler\\arm-sylixos-toolchain\\lib\\gcc\\arm-sylixos-eabi\\4.9.3\\include",
+                "C:\\Users\\June\\Workspace\\base0629\\libcextern\\libcextern\\include",
+                "C:\\Users\\June\\Workspace\\base0629\\libsylixos\\SylixOS",
+                "C:\\Users\\June\\Workspace\\base0629\\libsylixos\\SylixOS\\include",
+                "C:\\Users\\June\\Workspace\\base0629\\libsylixos\\SylixOS\\include\\network"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "cStandard": "c89",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}

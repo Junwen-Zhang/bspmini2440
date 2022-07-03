@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "s_system.h": "c",
+        "k_kernel.h": "c",
+        "fscommon.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "Disabled",
+    "workbench.colorCustomizations": {
+        "editor.lineHighlightBackground": "#1073cf2d",
+        "editor.lineHighlightBorder": "#9fced11f",
+        "titleBar.activeForeground": "#FCFCFF"
+    }
+}
