@@ -2,7 +2,8 @@
     "files.associations": {
         "s_system.h": "c",
         "k_kernel.h": "c",
-        "fscommon.h": "c"
+        "fscommon.h": "c",
+        "fake_nor.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled",
     "workbench.colorCustomizations": {

@@ -59,58 +59,34 @@ SylixOS/driver/touchscr/s3c_onewire.c \
 SylixOS/driver/touchscr/touchscr.c \
 SylixOS/driver/tty/samsungtty.c \
 SylixOS/driver/tty/uart.c \
-SylixOS/extfs/cquFs/cqufs.c \
-SylixOS/extfs/cquFs/cqufs_util.c \
-SylixOS/extfs/cquFs/cuqfs_port.c \
-SylixOS/extfs/hoitFs/hoitFs.c \
-SylixOS/extfs/hoitFs/hoitFsCache.c \
-SylixOS/extfs/hoitFs/hoitFsCmd.c \
-SylixOS/extfs/hoitFs/hoitFsFDLib.c \
-SylixOS/extfs/hoitFs/hoitFsGC.c \
-SylixOS/extfs/hoitFs/hoitFsLib.c \
-SylixOS/extfs/hoitFs/hoitFsLog.c \
-SylixOS/extfs/hoitFs/hoitFsTest.c \
-SylixOS/extfs/hoitFs/hoitFsTree.c \
-SylixOS/extfs/hoitFs/hoitFsTreeUtil.c \
-SylixOS/extfs/hoitFs/hoitMergeBuffer.c \
-SylixOS/extfs/spifFs/spifFs.c \
-SylixOS/extfs/spifFs/spifFsCache.c \
-SylixOS/extfs/spifFs/spifFsCmd.c \
-SylixOS/extfs/spifFs/spifFsFDLib.c \
-SylixOS/extfs/spifFs/spifFsGC.c \
-SylixOS/extfs/spifFs/spifFsGlue.c \
-SylixOS/extfs/spifFs/spifFsLib.c \
-SylixOS/extfs/spifFs/spifFsVerify.c \
-SylixOS/extfs/tools/fstester/fstester.c \
-SylixOS/extfs/tools/fstester/functionality.c \
-SylixOS/extfs/tools/list/iter.c \
-SylixOS/extfs/tools/list/list.c \
-SylixOS/extfs/tools/list/list_test.c \
+SylixOS/extfs/littleFs/lfs.c \
+SylixOS/extfs/littleFs/lfs_port.c \
+SylixOS/extfs/littleFs/lfs_util.c \
 SylixOS/user/main.c
 
 #*********************************************************************************************************
 # Header file search path (eg. LOCAL_INC_PATH := -I"Your header files search path")
 #*********************************************************************************************************
-LOCAL_INC_PATH := \
+LOCAL_INC_PATH :=  \
 -I"./SylixOS" \
 -I"./SylixOS/bsp"
 
 #*********************************************************************************************************
 # Pre-defined macro (eg. -DYOUR_MARCO=1)
 #*********************************************************************************************************
-LOCAL_DSYMBOL := \
+LOCAL_DSYMBOL :=  \
 -D__BOOT_INRAM=1
 
 #*********************************************************************************************************
 # Compiler flags
 #*********************************************************************************************************
-LOCAL_CFLAGS   := 
+LOCAL_CFLAGS := -std=c11
 LOCAL_CXXFLAGS := 
 
 #*********************************************************************************************************
 # Depend library (eg. LOCAL_DEPEND_LIB := -la LOCAL_DEPEND_LIB_PATH := -L"Your library search path")
 #*********************************************************************************************************
-LOCAL_DEPEND_LIB      := 
+LOCAL_DEPEND_LIB := 
 LOCAL_DEPEND_LIB_PATH := 
 
 #*********************************************************************************************************
@@ -137,9 +113,9 @@ LOCAL_USE_OMP := no
 #*********************************************************************************************************
 # User link command
 #*********************************************************************************************************
-LOCAL_PRE_LINK_CMD   := 
-LOCAL_POST_LINK_CMD  := 
-LOCAL_PRE_STRIP_CMD  := 
+LOCAL_PRE_LINK_CMD := 
+LOCAL_POST_LINK_CMD := 
+LOCAL_PRE_STRIP_CMD := 
 LOCAL_POST_STRIP_CMD := 
 
 include $(BSP_MK)

@@ -10,40 +10,39 @@
 **
 **--------------文件信息--------------------------------------------------------------------------------
 **
-** 文   件   名: cqufs_util.c
+** 文   件   名: lfs_port.h
 **
-** 创   建   人: cqu Group
+** 创   建   人: 章俊文
 **
 ** 文件创建日期: 2022 年 06 月 04 日
 **
-** 描        述: cqufs相关工具包
+** 描        述: LittleFs与VFS的接口文件
 *********************************************************************************************************/
-#include "cqufs_util.h"
+#define  __SYLIXOS_STDIO
+#define  __SYLIXOS_KERNEL
+
+#ifndef __LFS_PORT_H
+#define __LFS_PORT_H
+#include"lfs.h"
+
+
 /*********************************************************************************************************
-  说明：只有当用户不提供自定义配置时才编译
+  ???
 *********************************************************************************************************/
-#ifndef CQUFS_CONFIG
+#if LW_CFG_MAX_VOLUMES > 0 //&& LW_CFG_LFS_EN > 0
+
 /*********************************************************************************************************
-  说明：软件CRC实现小查找表
+  API
 *********************************************************************************************************/
-uint32_t cqufs_crc(uint32_t crc, const void *buffer, size_t size) {
-    static const uint32_t rtable[16] = {
-        0x00000000, 0x1db71064, 0x3b6e20c8, 0x26d930ac,
-        0x76dc4190, 0x6b6b51f4, 0x4db26158, 0x5005713c,
-        0xedb88320, 0xf00f9344, 0xd6d6a3e8, 0xcb61b38c,
-        0x9b64c2b0, 0x86d3d2d4, 0xa00ae278, 0xbdbdf21c,
-    };
+LW_API INT      API_LittleFsDrvInstall(VOID);
+LW_API INT      API_LittleFsDevCreate (PCHAR  pcName, PLW_BLK_DEV pblkd);
+LW_API INT      API_LittleFsDevDelete (PCHAR  pcName);
 
-    const uint8_t *data = buffer;
-
-    size_t i;
-    for (i = 0; i < size; i++) {
-        crc = (crc >> 4) ^ rtable[(crc ^ (data[i] >> 0)) & 0xf];
-        crc = (crc >> 4) ^ rtable[(crc ^ (data[i] >> 4)) & 0xf];
-    }
-
-    return crc;
-}
-
+#define littlefsDrv                API_LittleFsDrvInstall
+#define littlefsDevCreate          API_LittleFsDevCreate
+#define littlefsDevDelete          API_LittleFsDevDelete
 
 #endif
+
+
+#endif //__LFS_PORT_H

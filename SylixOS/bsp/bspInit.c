@@ -48,14 +48,14 @@
 #include "driver/netif/dm9000x.h"                                       /*  DM9000 网络芯片驱动         */
 #include "driver/sdi/sdInit.h"                                          /*  SD 接口                     */
 #include "driver/mtd/nor/nor.h"                                         /*  nor flash 驱动              */
-#include "extfs/hoitFs/hoitFs.h"                                        /*  HoitFS 文件驱动接口 */
-#include "extfs/hoitFs/hoitFsTreeUtil.h"                                /*  红黑树测试 - PYQ             */
-#include "extfs/hoitFs/hoitFsTree.h"                                    /*  Frag树测试 - PYQ             */
-#include "extfs/hoitFs/hoitFsCache.h"                                   /*  Cache测试  - ZN              */
-#include "extfs/spifFs/spifFs.h"                                        /*  Spiffs文件驱动接口 - PYQ */
-#include "extfs/tools/list/common.h"                                    /*  链表模板测试 - PYQ */
-#include "extfs/tools/fstester/fstester.h"                              /*  fstester - PYQ */
-#include "extfs/cquFs/cqufs_port.h"
+//#include "extfs/hoitFs/hoitFs.h"                                        /*  HoitFS 文件驱动接口 */
+//#include "extfs/hoitFs/hoitFsTreeUtil.h"                                /*  红黑树测试 - PYQ             */
+//#include "extfs/hoitFs/hoitFsTree.h"                                    /*  Frag树测试 - PYQ             */
+//#include "extfs/hoitFs/hoitFsCache.h"                                   /*  Cache测试  - ZN              */
+//#include "extfs/spifFs/spifFs.h"                                        /*  Spiffs文件驱动接口 - PYQ */
+//#include "extfs/tools/list/common.h"                                    /*  链表模板测试 - PYQ */
+//#include "extfs/tools/fstester/fstester.h"                              /*  fstester - PYQ */
+#include "extfs/littleFs/lfs_port.h"
 /*********************************************************************************************************
   操作系统符号表
 *********************************************************************************************************/
@@ -234,9 +234,9 @@ static VOID  halDrvInit (VOID)
     yaffsDrv();                                                         /*  yaffs  device driver        */
     canDrv();                                                           /*  CAN    device driver        */
     
-    API_HoitFsDrvInstall();                                             /*  挂载HoitFS文件系统       */
+//    API_HoitFsDrvInstall();                                             /*  挂载HoitFS文件系统       */
     API_LittleFsDrvInstall();                                           /*  挂载LittleFS文件系统 */
-    API_SpifFsDrvInstall();                                             /*  挂载SpifFS文件系统       */
+//    API_SpifFsDrvInstall();                                             /*  挂载SpifFS文件系统       */
     s3c2440GpioDrv();
 
 #ifdef MINI2440_PACKET
@@ -603,9 +603,9 @@ static PVOID  halBootThread (PVOID  pvBootArg)
     pretty_print("[Frag Tree Test]", "", DO_CENTRAL);
 //    hoitFTTreeTest();
 #endif // FT_TEST
-    listTest();
+//    listTest();
     //! Add By PYQ 2021-07-27
-    register_fstester_cmd();
+//    register_fstester_cmd();
 #else
     nandDevCreateEx("/n");                                              /*  mount nandflash disk(yaffs) */
 #endif
@@ -643,11 +643,12 @@ static PVOID  halBootThread (PVOID  pvBootArg)
 #endif
 
     API_ThreadAttrSetStackSize(&threadattr, __LW_THREAD_MAIN_STK_SIZE); /*  设置 main 线程的堆栈大小    */
+    printk("zjw:  API_ThreadCreate t_main   begin! \n");
     API_ThreadCreate("t_main",
                      (PTHREAD_START_ROUTINE)t_main,
                      &threadattr,
                      LW_NULL);                                          /*  Create "t_main()" thread    */
-
+    printk("zjw:  API_ThreadCreate t_main   end! \n");
     return  (LW_NULL);
 }
 /*********************************************************************************************************
