@@ -5,6 +5,8 @@
  * Copyright (c) 2017, Arm Limited. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  */
+#define  __SYLIXOS_STDIO
+#define  __SYLIXOS_KERNEL //加了这两句可以使用已定义的内核函数和结构
 #include "lfs.h"
 #include "lfs_util.h"
 
@@ -31,12 +33,14 @@ enum {
 static inline void lfs_cache_drop(lfs_t *lfs, lfs_cache_t *rcache) {
     // do not zero, cheaper if cache is readonly or only going to be
     // written with identical data (during relocates)
+    // printf("lfs_cache_drop(block: %d, off: %d, size: %d, %p)!!!\n",rcache->block,rcache->off,rcache->size,rcache->buffer);
     (void)lfs;
     rcache->block = LFS_BLOCK_NULL;
 }
 
 static inline void lfs_cache_zero(lfs_t *lfs, lfs_cache_t *pcache) {
     // zero to avoid information leak
+    // printf("lfs_cache_zero(block: %d, off: %d, size: %d, %p)!!!\n",pcache->block,pcache->off,pcache->size,pcache->buffer);
     memset(pcache->buffer, 0xff, lfs->cfg->cache_size);
     pcache->block = LFS_BLOCK_NULL;
 }
@@ -45,13 +49,22 @@ static int lfs_bd_read(lfs_t *lfs,
         const lfs_cache_t *pcache, lfs_cache_t *rcache, lfs_size_t hint,
         lfs_block_t block, lfs_off_t off,
         void *buffer, lfs_size_t size) {
-//    printf("lfs_bd_read(block:%d, off:%d, size:%d)\n",block,off,size);
-    
-    uint8_t *data = buffer;
+
+    uint8_t *data = (uint8_t*)buffer;
     if (block >= lfs->cfg->block_count ||
             off+size > lfs->cfg->block_size) {
         return LFS_ERR_CORRUPT;
     }
+
+    // printf("lfs_bd_read(block:%d, off:%d, size:%d)\n",block, off, size);
+    // if(pcache!=NULL)
+    //     printf("pcache: %p, p->block:%d, p->off:%d \n", pcache->buffer, pcache->block, pcache->off);
+    // else
+    //     printf("pcache=NULL\n");
+    // if(rcache!=NULL)
+    //     printf("rcache: %p, r->block:%d, r->off:%d \n\n", rcache->buffer, rcache->block, rcache->off);
+    // else
+    //     printf("rcache=NULL\n");
 
     while (size > 0) {
         lfs_size_t diff = size;
@@ -122,10 +135,7 @@ static int lfs_bd_read(lfs_t *lfs,
             return err;
         }
     }
-//    char* data0=buffer;
-//    for(int i=0;i<size;i++)printf("%02x_",(char)*data0++);
-//    printf("\n");
-
+    
     return 0;
 }
 
@@ -159,7 +169,8 @@ static int lfs_bd_cmp(lfs_t *lfs,
 #ifndef LFS_READONLY
 static int lfs_bd_flush(lfs_t *lfs,
         lfs_cache_t *pcache, lfs_cache_t *rcache, bool validate) {
-//    printf("lfs_bd_flush(%b)\n",validate);
+    // printf("lfs_bd_flush(p->block:%d, p->off:%d, r->block:%d, r->off:%d,%p,%p)\n"
+    //     ,pcache->block,pcache->off,rcache->block,rcache->off,pcache->buffer,rcache->buffer);
     if (pcache->block != LFS_BLOCK_NULL && pcache->block != LFS_BLOCK_INLINE) {
         LFS_ASSERT(pcache->block < lfs->cfg->block_count);
         lfs_size_t diff = lfs_alignup(pcache->size, lfs->cfg->prog_size);
@@ -195,7 +206,7 @@ static int lfs_bd_flush(lfs_t *lfs,
 #ifndef LFS_READONLY
 static int lfs_bd_sync(lfs_t *lfs,
         lfs_cache_t *pcache, lfs_cache_t *rcache, bool validate) {
-//    printf("lfs_bd_sync()\n");
+    // printf("lfs_bd_sync()\n");
     lfs_cache_drop(lfs, rcache);
 
     int err = lfs_bd_flush(lfs, pcache, rcache, validate);
@@ -214,10 +225,21 @@ static int lfs_bd_prog(lfs_t *lfs,
         lfs_cache_t *pcache, lfs_cache_t *rcache, bool validate,
         lfs_block_t block, lfs_off_t off,
         const void *buffer, lfs_size_t size) {
-//    printf("lfs_bd_prog(block:%d, off:%d, size:%d)\n",block,off,size);
-    // char *data0=buffer;
-    // for(int i=0;i<size;i++)printf("%d_",(char)*data0++);
-    // printf("\n");
+
+    // printf("lfs_bd_prog(block:%d, off:%d, size:%d)\n",block, off, size);
+    // if(pcache!=NULL)
+    //     printf("pcache: %p, p->block:%d, p->off:%d \n", pcache->buffer, pcache->block, pcache->off);
+    // else
+    //     printf("pcache=NULL\n");
+    // if(rcache!=NULL)
+    //     printf("rcache: %p, r->block:%d, r->off:%d \n\n", rcache->buffer, rcache->block, rcache->off);
+    // else
+    //     printf("rcache=NULL\n");
+
+    // char *data0=(char*)buffer;
+    // for(int i=0;i<size;i++)printf("%02x",*data0++);
+    // printf("\n\n");
+
     const uint8_t *data = buffer;
     LFS_ASSERT(block == LFS_BLOCK_INLINE || block < lfs->cfg->block_count);
     LFS_ASSERT(off + size <= lfs->cfg->block_size);
@@ -2965,7 +2987,7 @@ static int lfs_file_rawopencfg(lfs_t *lfs, lfs_file_t *file,
     if (file->cfg->buffer) {
         file->cache.buffer = file->cfg->buffer;
     } else {
-        file->cache.buffer = lfs_malloc(lfs->cfg->cache_size);
+        file->cache.buffer = __SHEAP_ALLOC(lfs->cfg->cache_size);
         if (!file->cache.buffer) {
             err = LFS_ERR_NOMEM;
             goto cleanup;
@@ -3028,7 +3050,7 @@ static int lfs_file_rawclose(lfs_t *lfs, lfs_file_t *file) {
 
     // clean up memory
     if (!file->cfg->buffer) {
-        lfs_free(file->cache.buffer);
+        __SHEAP_FREE(file->cache.buffer);
     }
 
     return err;
@@ -3947,7 +3969,7 @@ static int lfs_init(lfs_t *lfs, const struct lfs_config *cfg) {
     if (lfs->cfg->read_buffer) {
         lfs->rcache.buffer = lfs->cfg->read_buffer;
     } else {
-        lfs->rcache.buffer = lfs_malloc(lfs->cfg->cache_size);
+        lfs->rcache.buffer = __SHEAP_ALLOC(lfs->cfg->cache_size);
         if (!lfs->rcache.buffer) {
             err = LFS_ERR_NOMEM;
             goto cleanup;
@@ -3958,7 +3980,7 @@ static int lfs_init(lfs_t *lfs, const struct lfs_config *cfg) {
     if (lfs->cfg->prog_buffer) {
         lfs->pcache.buffer = lfs->cfg->prog_buffer;
     } else {
-        lfs->pcache.buffer = lfs_malloc(lfs->cfg->cache_size);
+        lfs->pcache.buffer = __SHEAP_ALLOC(lfs->cfg->cache_size);
         if (!lfs->pcache.buffer) {
             err = LFS_ERR_NOMEM;
             goto cleanup;
@@ -3976,7 +3998,7 @@ static int lfs_init(lfs_t *lfs, const struct lfs_config *cfg) {
     if (lfs->cfg->lookahead_buffer) {
         lfs->free.buffer = lfs->cfg->lookahead_buffer;
     } else {
-        lfs->free.buffer = lfs_malloc(lfs->cfg->lookahead_size);
+        lfs->free.buffer = __SHEAP_ALLOC(lfs->cfg->lookahead_size);
         if (!lfs->free.buffer) {
             err = LFS_ERR_NOMEM;
             goto cleanup;
@@ -4026,15 +4048,15 @@ cleanup:
 static int lfs_deinit(lfs_t *lfs) {
     // free allocated memory
     if (!lfs->cfg->read_buffer) {
-        lfs_free(lfs->rcache.buffer);
+        __SHEAP_FREE(lfs->rcache.buffer);
     }
 
     if (!lfs->cfg->prog_buffer) {
-        lfs_free(lfs->pcache.buffer);
+        __SHEAP_FREE(lfs->pcache.buffer);
     }
 
     if (!lfs->cfg->lookahead_buffer) {
-        lfs_free(lfs->free.buffer);
+        __SHEAP_FREE(lfs->free.buffer);
     }
 
     return 0;
