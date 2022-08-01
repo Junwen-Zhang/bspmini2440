@@ -22,16 +22,16 @@ int  t_main (void)
     printf("machine  : %s\n", name.machine);
 
 
-//    PCHAR mountcmd[5]={"mount","-t","lfs","/root/1","/mnt/lfs"};
-//    int mountargs=5;
-//    __tshellFsCmdMount(mountargs,mountcmd);
-//    printf("@@__tshellFsCmdMount end!\n\n");
-
-
-    PCHAR mountcmd[5]={"mount","-t","ramfs","/root/1","/mnt/ramfs"};
+    PCHAR mountcmd[5]={"mount","-t","lfs","/root/1","/mnt/lfs"};
     int mountargs=5;
     __tshellFsCmdMount(mountargs,mountcmd);
     printf("@@__tshellFsCmdMount end!\n\n");
+
+
+//    PCHAR mountcmd[5]={"mount","-t","ramfs","/root/1","/mnt/ramfs"};
+//    int mountargs=5;
+//    __tshellFsCmdMount(mountargs,mountcmd);
+//    printf("@@__tshellFsCmdMount end!\n\n");
 
 
 //    PCHAR cdcmd[2]={"cd","/mnt/lfs"};
