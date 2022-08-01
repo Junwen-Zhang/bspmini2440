@@ -121,55 +121,55 @@ enum lfs_type {
     LFS_FROM_USERATTRS      = 0x102,
 };
 
-//// File open flags
-//enum lfs_open_flags {
-//    // open flags
-//    LFS_O_RDONLY = 1,         // Open a file as read only
-//#ifndef LFS_READONLY
-//    LFS_O_WRONLY = 2,         // Open a file as write only
-//    LFS_O_RDWR   = 3,         // Open a file as read and write
-//    LFS_O_CREAT  = 0x0100,    // Create a file if it does not exist
-//    LFS_O_EXCL   = 0x0200,    // Fail if a file already exists
-//    LFS_O_TRUNC  = 0x0400,    // Truncate the existing file to zero size
-//    LFS_O_APPEND = 0x0800,    // Move to end of file on every write
-//#endif
-//
-//    // internally used flags
-//#ifndef LFS_READONLY
-//    LFS_F_DIRTY   = 0x010000, // File does not match storage
-//    LFS_F_WRITING = 0x020000, // File has been written since last flush
-//#endif
-//    LFS_F_READING = 0x040000, // File has been read since last flush
-//#ifndef LFS_READONLY
-//    LFS_F_ERRED   = 0x080000, // An error occurred during write
-//#endif
-//    LFS_F_INLINE  = 0x100000, // Currently inlined in directory entry
-//};
-
 // File open flags
 enum lfs_open_flags {
-    // open flags
-    LFS_O_RDONLY = 0x0000,    // Open a file as read only
+   // open flags
+   LFS_O_RDONLY = 1,         // Open a file as read only
 #ifndef LFS_READONLY
-    LFS_O_WRONLY = 0x0001,    // Open a file as write only
-    LFS_O_RDWR   = 0x0002,    // Open a file as read and write
-    LFS_O_CREAT  = 0x0200,    // Create a file if it does not exist
-    LFS_O_EXCL   = 0x0800,    // Fail if a file already exists
-    LFS_O_TRUNC  = 0x0400,    // Truncate the existing file to zero size
-    LFS_O_APPEND = 0x0008,    // Move to end of file on every write
+   LFS_O_WRONLY = 2,         // Open a file as write only
+   LFS_O_RDWR   = 3,         // Open a file as read and write
+   LFS_O_CREAT  = 0x0100,    // Create a file if it does not exist
+   LFS_O_EXCL   = 0x0200,    // Fail if a file already exists
+   LFS_O_TRUNC  = 0x0400,    // Truncate the existing file to zero size
+   LFS_O_APPEND = 0x0800,    // Move to end of file on every write
 #endif
 
-    // internally used flags
+   // internally used flags
 #ifndef LFS_READONLY
-    LFS_F_DIRTY   = 0x010000, // File does not match storage
-    LFS_F_WRITING = 0x020000, // File has been written since last flush
+   LFS_F_DIRTY   = 0x010000, // File does not match storage
+   LFS_F_WRITING = 0x020000, // File has been written since last flush
 #endif
-    LFS_F_READING = 0x040000, // File has been read since last flush
+   LFS_F_READING = 0x040000, // File has been read since last flush
 #ifndef LFS_READONLY
-    LFS_F_ERRED   = 0x080000, // An error occurred during write
+   LFS_F_ERRED   = 0x080000, // An error occurred during write
 #endif
-    LFS_F_INLINE  = 0x100000, // Currently inlined in directory entry
+   LFS_F_INLINE  = 0x100000, // Currently inlined in directory entry
 };
+
+// // File open flags
+// enum lfs_open_flags {
+//     // open flags
+//     LFS_O_RDONLY = 0x0000,    // Open a file as read only
+// #ifndef LFS_READONLY
+//     LFS_O_WRONLY = 0x0001,    // Open a file as write only
+//     LFS_O_RDWR   = 0x0002,    // Open a file as read and write
+//     LFS_O_CREAT  = 0x0200,    // Create a file if it does not exist
+//     LFS_O_EXCL   = 0x0800,    // Fail if a file already exists
+//     LFS_O_TRUNC  = 0x0400,    // Truncate the existing file to zero size
+//     LFS_O_APPEND = 0x0008,    // Move to end of file on every write
+// #endif
+
+//     // internally used flags
+// #ifndef LFS_READONLY
+//     LFS_F_DIRTY   = 0x010000, // File does not match storage
+//     LFS_F_WRITING = 0x020000, // File has been written since last flush
+// #endif
+//     LFS_F_READING = 0x040000, // File has been read since last flush
+// #ifndef LFS_READONLY
+//     LFS_F_ERRED   = 0x080000, // An error occurred during write
+// #endif
+//     LFS_F_INLINE  = 0x100000, // Currently inlined in directory entry
+// };
 
 // File seek flags
 enum lfs_whence_flags {

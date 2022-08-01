@@ -35,22 +35,24 @@
 /* 为了匹配SylixOS，对lfs_t又做了一层封装，加入了VFS需要的信息 */
 typedef struct lfs_volume{
     LW_DEV_HDR          LFS_devhdrHdr;                                /*  lfs文件系统设备头        */
-    LW_OBJECT_HANDLE    LFS_hVolLock;                                 /*  卷操作锁                */
-    LW_LIST_LINE_HEADER LFS_plineFdNodeHeader;                        /*  fd_node 链表            */
-    LW_LIST_LINE_HEADER LFS_plineSon;                                 /*  儿子链表                */
-    BOOL                LFS_bForceDelete;                             /*  是否允许强制卸载卷       */
+    LW_OBJECT_HANDLE    LFS_hVolLock;                                 /*  卷操作锁                        */
+    LW_LIST_LINE_HEADER LFS_plineFdNodeHeader;                        /*  fd_node 链表               */
+
+    BOOL                LFS_bForceDelete;                             /*  是否允许强制卸载卷      */
     BOOL                LFS_bValid;
-    uid_t               LFS_uid;                                      /*  用户 id                 */
-    gid_t               LFS_gid;                                      /*  组   id                 */
-    mode_t              LFS_mode;                                     /*  文件 mode               */
-    time_t              LFS_time;                                     /*  创建时间                */
-    lfs_t               lfst;                                         /*  lfs文件系统句柄          */
+
+    uid_t               LFS_uid;                                      /*  用户 id             */
+    gid_t               LFS_gid;                                      /*  组   id              */
+    mode_t              LFS_mode;                                     /*  文件 mode           */
+    time_t              LFS_time;                                     /*  创建时间                        */
+    lfs_t               lfst;                                         /*  lfs文件系统句柄           */
 } LFS_VOLUME;
 typedef LFS_VOLUME*     PLFS_VOLUME;
 
 /* 为了匹配SylixOS，将dir和file类型封装为node文件节点，并加入了文件共享信息 */
 typedef struct lfs_node {
     PLFS_VOLUME         LFSN_plfs;                                      /*       文件系统               */
+
     BOOL                LFSN_bChanged;                                  /*       文件内容是否更改        */
     mode_t              LFSN_mode;                                      /*       文件 mode              */
     time_t              LFSN_timeCreate;                                /*       创建时间               */
@@ -59,16 +61,44 @@ typedef struct lfs_node {
 
     size_t              LFSN_stSize;                                    /*  当前文件大小 (可能大于缓冲)   */
     size_t              LFSN_stVSize;                                   /*      lseek 出的虚拟大小       */
+
     uid_t               LFSN_uid;                                       /*         用户 id              */
     gid_t               LFSN_gid;                                       /*         组   id              */
-    PCHAR               LFSN_pcName;                                    /*         文件名称              */
-    PCHAR               LFSN_pcLink;                                    /*         链接目标              */
-    /* 有两种类型，根据isfile判断，其中一个指针为空 */
+    
+    // PCHAR               LFSN_pcLink;                                 /*         链接目标              */
+    /* 有两种类型，根据isfile判断，lfsdir和lfsfile其中一个为空 */
     bool                isfile;
     lfs_dir_t           lfsdir;
     lfs_file_t          lfsfile;
 } LFS_NODE;
 typedef LFS_NODE*       PLFS_NODE;
+
+
+/* 用于文件打开标记的转换（包括读写权限，是否创建） */
+int mode_lfs2sylix(int lfsmode){
+    int temp = 0;
+    if (lfsmode & LFS_O_RDONLY)    temp |= O_RDONLY;
+    if (lfsmode & LFS_O_WRONLY)    temp |= O_WRONLY;
+    if (lfsmode & LFS_O_RDWR)      temp |= O_RDWR;
+    if (lfsmode & LFS_O_CREAT)     temp |= O_CREAT;
+    return temp;
+}
+int mode_sylix2lfs(int sylixmode){
+    int temp = 0;
+    if(sylixmode == O_RDONLY)   temp |= LFS_O_RDONLY;
+    if(sylixmode & O_WRONLY)    temp |= LFS_O_WRONLY;
+    if(sylixmode & O_RDWR)      temp |= LFS_O_RDWR;
+    if(sylixmode & O_CREAT)     temp |= LFS_O_CREAT;
+    return temp;
+}
+
+/* 用于文件类型的转换 */
+int type_lfs2sylix(int lfstype){
+    int temp = 0;
+    if (lfstype & LFS_TYPE_REG)    temp |= S_IFREG;
+    if (lfstype & LFS_TYPE_DIR)    temp |= S_IFDIR;
+    return temp;
+}
 
 #define __LFS_FILE_LOCK(plfsn)        API_SemaphoreMPend(plfsn->LFSN_plfs->LFS_hVolLock, \
                                       LW_OPTION_WAIT_INFINITE)
@@ -170,7 +200,9 @@ const struct lfs_config cfg =            /* 文件系统默认初始化配置 */
 //    .lookahead_buffer = lfs_lookahead_buf
 };
 
-static inline void __lfs_init_plfsn(PLFS_NODE  plfsn, PLFS_VOLUME  plfs,mode_t iMode){
+static inline void __lfs_init_plfsn(PLFS_NODE  plfsn, 
+                                    PLFS_VOLUME  plfs,
+                                    mode_t iMode){
     plfsn->LFSN_plfs         = plfs;
     plfsn->LFSN_bChanged     = false;
     plfsn->LFSN_mode         = iMode;
@@ -178,10 +210,13 @@ static inline void __lfs_init_plfsn(PLFS_NODE  plfsn, PLFS_VOLUME  plfs,mode_t i
     plfsn->LFSN_timeChange   = lib_time(LW_NULL);
     plfsn->LFSN_timeCreate   = lib_time(LW_NULL);
     plfsn->LFSN_uid          = getuid();
-    plfsn->LFSN_gid          = getgid();
-    plfsn->LFSN_pcName       = "hhhh"; 
-    plfsn->LFSN_stSize       = 1;
-    plfsn->LFSN_stVSize      = 2;
+    plfsn->LFSN_gid          = getgid(); 
+    if(plfsn->isfile){
+        plfsn->LFSN_stSize   = lfs_file_size(&plfs->lfst,&plfsn->lfsfile);
+    }else{
+        plfsn->LFSN_stSize   = 0;
+    }
+    plfsn->LFSN_stVSize      = plfsn->LFSN_stSize;
 }
 /*********************************************************************************************************
 ** 函数名称: __little_stat
@@ -193,7 +228,9 @@ static inline void __lfs_init_plfsn(PLFS_NODE  plfsn, PLFS_VOLUME  plfs,mode_t i
 ** 全局变量:
 ** 调用模块:
 *********************************************************************************************************/
-static inline void __lfs_stat (PLFS_NODE  plfsn, PLFS_VOLUME  plfs, struct stat  *pstat)
+static inline void __lfs_stat (PLFS_NODE  plfsn, 
+                               PLFS_VOLUME  plfs, 
+                               struct stat  *pstat)
 {
     if (plfsn) {
         pstat->st_dev     = LW_DEV_MAKE_STDEV(&plfs->LFS_devhdrHdr);
@@ -211,6 +248,7 @@ static inline void __lfs_stat (PLFS_NODE  plfsn, PLFS_VOLUME  plfs, struct stat 
     } else {
         pstat->st_dev     = LW_DEV_MAKE_STDEV(&plfs->LFS_devhdrHdr);
         pstat->st_ino     = (ino_t)0;
+        pstat->st_mode    = plfs->LFS_mode;
         pstat->st_nlink   = 1;
         pstat->st_uid     = plfs->LFS_uid;
         pstat->st_gid     = plfs->LFS_gid;
@@ -235,7 +273,8 @@ static inline void __lfs_stat (PLFS_NODE  plfsn, PLFS_VOLUME  plfs, struct stat 
 ** 全局变量:
 ** 调用模块:
 *********************************************************************************************************/
-static inline void  __lfs_statfs (PLFS_VOLUME  pfs, struct statfs  *pstatfs)
+static inline void  __lfs_statfs (PLFS_VOLUME  pfs, 
+                                  struct statfs  *pstatfs)
 {
     pstatfs->f_type   = TMPFS_MAGIC;
     pstatfs->f_bavail = 1;
@@ -255,40 +294,86 @@ static inline void  __lfs_statfs (PLFS_VOLUME  pfs, struct statfs  *pstatfs)
     pstatfs->f_namelen = PATH_MAX;
 }
 
-static inline int __lfs_maken (PLFS_VOLUME plfs,
+/* 创建节点，并打开，信息保存在plfsn中 */
+static inline LONG __lfs_maken (PLFS_VOLUME plfs,
                                PCHAR       pcName,
                                PLFS_NODE   plfsn,
+                               INT         iFlag,
                                mode_t      mode)
 {
-    plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));
-    if (plfsn == LW_NULL){
-        _ErrorHandle(ENOMEM);
-        return  (-100);
-    }
-    lib_bzero(plfsn,sizeof(LFS_NODE));
+    int err = 0;
 
     if(S_ISDIR(mode)){
-        int mkdirerror = lfs_mkdir(&plfs->lfst, pcName);         /*     创建操作(目录)      */
-        if(mkdirerror<0){
-            printf("dir create failed!\n");
-            __SHEAP_FREE(plfsn);
-            return (-100);
+        err = lfs_mkdir(&plfs->lfst, pcName);                   /*     创建操作(目录)      */
+        if(err >= 0) {
+            err = lfs_dir_open(&plfs->lfst, &plfsn->lfsdir, pcName);
+            if(err >= 0){
+                __lfs_init_plfsn(plfsn, plfs, mode|S_IFDIR);
+                plfsn->isfile = false;
+            }
         }
-        else printf("dir create successed!\n");
     }else{                                                      /*     创建操作(文件)      */
-        int mkfileerror = lfs_file_open(&plfs->lfst, &plfsn->lfsfile, pcName, 
-                                        LFS_TYPE_CREATE|LFS_TYPE_REG);
-        if(mkfileerror<0){
-            printf("file create failed!\n");
-            __SHEAP_FREE(plfsn);
-            return (-100);
+        err = lfs_file_open(&plfs->lfst, &plfsn->lfsfile, pcName, mode_sylix2lfs(iFlag));
+        if(err >= 0){
+            __lfs_init_plfsn(plfsn, plfs, mode|S_IFREG);
+            plfsn->isfile = true;
         }
-        else printf("file create successed!\n");
     }
 
-    __lfs_init_plfsn(plfsn, plfs, mode);
-
+    if (err < 0) {
+        __SHEAP_FREE(plfsn);
+        return err;
+    }
     return  (int)plfsn;
+}
+
+/* 单纯的打开文件或目录，若节点不存在不会创建节点 */
+static inline LONG __lfs_open (PLFS_VOLUME pfs,
+                               PCHAR       pcName,
+                               PLFS_NODE   plfsn,
+                               INT         iFlags,
+                               INT         iMode)
+{
+    int err = 0;
+    if (iFlags & O_CREAT){
+        printf("in func(__lfs_open), node can't be made.\r\n");
+        return (PX_ERROR);
+    }
+
+    /* 这里不用iMode判断文件还是目录，是因为有时信息未读取，iMode未知。*/
+    err = lfs_file_open(&pfs->lfst, &plfsn->lfsfile, 
+                                pcName, mode_sylix2lfs(iFlags));
+    if(err >= 0){
+        plfsn->isfile = true;
+        __lfs_init_plfsn(plfsn, pfs, iMode|S_IFREG);
+    }else{
+        err = lfs_dir_open(&pfs->lfst, &plfsn->lfsdir, pcName);
+        if(err >= 0){
+            plfsn->isfile = false;
+            __lfs_init_plfsn(plfsn, pfs, iMode|S_IFDIR);
+        }
+    }
+
+    return (err);
+}
+
+/* 删除一个文件或文件夹节点 */
+static inline INT  __lfs_unlink (PLFS_NODE  plfsn)
+{
+    PLFS_VOLUME     plfs   = plfsn->LFSN_plfs;
+    
+    if (S_ISDIR(plfsn->LFSN_mode)) {                                  /*    文件夹若要删除，必须为空    */
+        lfs_dir_rewind(&plfs->lfst, &plfsn->lfsdir);
+        struct lfs_info infotemp;
+        int err = lfs_dir_read(&plfs->lfst, &plfsn->lfsdir, &infotemp);
+        if(err > 0) {
+            printf("the dir is not empty, and can't move!\r\n");
+            return (PX_ERROR);
+        }
+    }
+
+    __SHEAP_FREE(plfsn);
+    return  (ERROR_NONE);
 }
 
 
@@ -297,8 +382,8 @@ static inline int __lfs_maken (PLFS_VOLUME plfs,
 ** 功能描述: 打开或者创建文件
 ** 输　入  :  pfs              内存中littleFs文件系统的super block
 **           pcName           文件名
-**           iFlags           方式
-**           iMode            mode_t
+**           iFlags           打开标志，例如读写权限，是否创建
+**           iMode            mode_t，文件的类型
 ** 输　出  : < 0 错误
 ** 全局变量:
 ** 调用模块:
@@ -328,33 +413,29 @@ static LONG __littleFsOpen(PLFS_VOLUME     pfs,
         return  (PX_ERROR);
     }
 
+    int err = 0;
+    plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));
+    if (plfsn == LW_NULL){
+        _ErrorHandle(ENOMEM);
+        return  (PX_ERROR);
+    }
+    lib_bzero(plfsn,sizeof(LFS_NODE));
+
+    /************************************ TODO ************************************/
     if (iFlags & O_CREAT ){
         if (__fsCheckFileName(pcName)) {
             _ErrorHandle(ENOENT);
             return  (PX_ERROR);
         }
-        if(__lfs_maken(pfs, pcName, plfsn, iMode) == -100){              /*     创建文件或目录节点       */
-            return  (PX_ERROR);
-        }
+        err = __lfs_maken(pfs, pcName, plfsn, iFlags, iMode);       /*     创建文件或目录节点       */
+        if (err >=0 ) goto __file_open_ok;
     }       
    
-    /************************************ TODO ************************************/
-    int openerr = lfs_file_open(&pfs->lfst, &plfsn->lfsfile, pcName, iFlags);
-    if(openerr>=0){
-        printf("file open success!\n");
-        plfsn->isfile = true;
-        goto __file_open_ok;
-    }else{
-        openerr=lfs_dir_open(&pfs->lfst, &plfsn->lfsdir, pcName);
-        if(openerr>=0){
-            printf("dir open success!\n");
-            plfsn->isfile = false;
-            iMode = iMode|S_IFDIR;
-            goto __file_open_ok;
-        }
+    err = __lfs_open(pfs, pcName, plfsn, iFlags, iMode);
+    if (err < 0) {
+        __SHEAP_FREE(plfsn);
+        return  (PX_ERROR);
     }
-    printf("open failed!\n");
-    return (PX_ERROR);
 
 __file_open_ok:
     __lfs_stat(plfsn, pfs, &statGet);
@@ -362,7 +443,7 @@ __file_open_ok:
                                statGet.st_dev,
                                (ino64_t)statGet.st_ino,
                                iFlags,
-                               iMode,
+                               plfsn->LFSN_mode,
                                statGet.st_uid,
                                statGet.st_gid,
                                statGet.st_size,
@@ -378,15 +459,15 @@ __file_open_ok:
     LW_DEV_INC_USE_COUNT(&pfs->LFS_devhdrHdr);                          /*  更新计数器                  */
 
     __LFS_VOL_UNLOCK(pfs);
-    printf("__littleFsOpen end!\n");
+    // printf("__littleFsOpen end!\r\n");
     return  ((LONG)pfdnode);                                            /*  返回文件节点                */
 }
 
 /*********************************************************************************************************
 ** 函数名称: __littleFsRemove
 ** 功能描述: fs remove 操作
-** 输　入  : pfs           卷设备
-**           pcName           文件名
+** 输　入  :  pfs           卷设备
+**           pcName         文件名
 **           注意文件名如果为空就是卸载本文件系统
 ** 输　出  : < 0 表示错误
 ** 全局变量:
@@ -395,11 +476,6 @@ __file_open_ok:
 static INT  __littleFsRemove (PLFS_VOLUME   pfs,
                            PCHAR         pcName)
 {
-    PLFS_NODE           plfsn;
-
-    plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));
-    lib_bzero(plfsn, sizeof(LFS_NODE));
-
     if (pcName == LW_NULL) {
         _ErrorHandle(ERROR_IO_NO_DEVICE_NAME_IN_PATH);
         return  (PX_ERROR);
@@ -410,34 +486,25 @@ static INT  __littleFsRemove (PLFS_VOLUME   pfs,
         return  (PX_ERROR);
     }
 
-    //************************************ TODO ************************************
-    struct lfs_info lfsinfo;
-    int error=lfs_stat(&pfs->lfst,pcName,&lfsinfo);
-    int openerror=0;
-    if(!error){
-        if(lfsinfo.type==LFS_TYPE_DIR){
-            openerror=lfs_dir_open(&pfs->lfst,&plfsn->lfsdir,pcName);
-            plfsn->isfile=false;
-        }
-        else{
-            openerror=lfs_file_open(&pfs->lfst,&plfsn->lfsfile,pcName,LFS_O_RDWR);
-            plfsn->isfile=true;
-        }
-    }else{
-        __LFS_VOL_UNLOCK(pfs);
-        _ErrorHandle(ENOENT);
-        return  (PX_ERROR);
+    /* 首先判断是否是文件系统根目录 */
+    bool broot = FALSE;
+    if (*pcName == PX_ROOT) {                                           /*  忽略根符号                  */
+        if (pcName[1] == PX_EOS) broot= TRUE;
+        else broot = FALSE;
+    } else {
+        if (pcName[0] == PX_EOS) broot= TRUE;
+        else broot = FALSE;
     }
 
-    if (openerror>=0) {
-        lfs_remove(&pfs->lfst,pcName);
+    int err;
+    if (broot == FALSE){
+        err = lfs_remove(&pfs->lfst, pcName);                           /*        删除 lfs 文件         */
         __LFS_VOL_UNLOCK(pfs);
-        return  (ERROR_NONE);
-
-    } else if (!pcName) {                                               /*    删除 lfs 文件系统           */
+        return  (err);
+    } else {                                                            /*       删除 lfs 文件系统       */
         if (pfs->LFS_bValid == LW_FALSE) {
             __LFS_VOL_UNLOCK(pfs);
-            return  (ERROR_NONE);                                       /*    正在被其他任务卸载          */
+            return  (ERROR_NONE);                                       /*      正在被其他任务卸载        */
         }
 
 __re_umount_vol:
@@ -471,30 +538,24 @@ __re_umount_vol:
         _DebugHandle(__LOGMESSAGE_LEVEL, "LittleFS: Lfs unmount ok.\r\n");
 
         return  (ERROR_NONE);
+    } 
 
-    } else {
-        __LFS_VOL_UNLOCK(pfs);
-        _ErrorHandle(ENOENT);
-        return  (PX_ERROR);
-    }
 }
 
 /*********************************************************************************************************
 ** 函数名称: __littleFsClose
 ** 功能描述: fs close 操作
 ** 输　入  : pfdentry         文件控制块
-** 输　出  : < 0 表示错误
+** 输　出  : < 0              表示错误
 ** 全局变量:
 ** 调用模块:
 *********************************************************************************************************/
 static INT  __littleFsClose (PLW_FD_ENTRY    pfdentry)
 {
-    PLW_FD_NODE   pfdnode = (PLW_FD_NODE)pfdentry->FDENTRY_pfdnode;
-    PLFS_NODE     plfsn   = (PLFS_NODE)pfdnode->FDNODE_pvFile;
-    PLFS_VOLUME   pfs  = (PLFS_VOLUME)pfdnode->FDNODE_pvFsExtern;
-    BOOL          bRemove = LW_FALSE;
-
-    printf("__littleFsClose begin!\n");
+    PLW_FD_NODE   pfdnode = (PLW_FD_NODE)pfdentry->FDENTRY_pfdnode ;
+    PLFS_NODE     plfsn   = (PLFS_NODE)  pfdnode->FDNODE_pvFile    ;
+    PLFS_VOLUME   pfs     = (PLFS_VOLUME)pfdnode->FDNODE_pvFsExtern;
+    BOOL          bRemove = LW_FALSE;   //TODO
 
     if (__LFS_VOL_LOCK(pfs) != ERROR_NONE) {                              /*        设备出错            */
         _ErrorHandle(ENXIO);                                           
@@ -503,7 +564,8 @@ static INT  __littleFsClose (PLW_FD_ENTRY    pfdentry)
 
     if (API_IosFdNodeDec(&pfs->LFS_plineFdNodeHeader,
                          pfdnode, &bRemove) == 0) {
-        if (plfsn->isfile) {
+        if (plfsn) 
+        if (plfsn->isfile){
             lfs_file_close(&pfs->lfst, &plfsn->lfsfile);
         }else{
             lfs_dir_close(&pfs->lfst, &plfsn->lfsdir);
@@ -511,9 +573,12 @@ static INT  __littleFsClose (PLW_FD_ENTRY    pfdentry)
     }
 
     LW_DEV_DEC_USE_COUNT(&pfs->LFS_devhdrHdr);
+//    __SHEAP_FREE(plfsn);
+    if (bRemove && plfsn) {
+        __lfs_unlink(plfsn);
+    }
 
     __LFS_VOL_UNLOCK(pfs);
-    printf("__littleFsClose end!\n");
 
     return  (ERROR_NONE);
 }
@@ -559,11 +624,12 @@ static ssize_t  __littleFsRead (PLW_FD_ENTRY pfdentry,
 
     if (stMaxBytes) {
         if(!plfsn->isfile){
-            _DebugHandle(__LOGMESSAGE_LEVEL, "LittleFS: you can not resd a directory.\r\n");
+            _DebugHandle(__LOGMESSAGE_LEVEL, "LittleFS: you can not read a directory.\r\n");
         }else{
             sstReadNum = lfs_file_read(&plfsn->LFSN_plfs->lfst, &plfsn->lfsfile, pcBuffer, stMaxBytes);
             if (sstReadNum > 0) {
                 pfdentry->FDENTRY_oftPtr += (off_t)sstReadNum;              /*  更新文件指针                */
+                lfs_file_seek(&plfsn->LFSN_plfs->lfst, &plfsn->lfsfile,sstReadNum,LFS_SEEK_CUR);
             }
         }
     } else {
@@ -622,11 +688,7 @@ static ssize_t  __littleFsPRead (PLW_FD_ENTRY pfdentry,
         }else{
             lfs_file_seek(&plfsn->LFSN_plfs->lfst, &plfsn->lfsfile,oftPos,LFS_SEEK_SET);
             sstReadNum = lfs_file_read(&plfsn->LFSN_plfs->lfst, &plfsn->lfsfile, pcBuffer, stMaxBytes);
-            if (sstReadNum > 0) {
-                pfdentry->FDENTRY_oftPtr += (off_t)sstReadNum;              /*  更新文件指针                */
-            }
         }
-
     } else {
         sstReadNum = 0;
     }
@@ -686,8 +748,9 @@ static ssize_t  __littleFsWrite (PLW_FD_ENTRY  pfdentry,
             sstWriteNum = lfs_file_write(&plfsn->LFSN_plfs->lfst, &plfsn->lfsfile, pcBuffer, stNBytes);
         }
         if (sstWriteNum > 0) {
-                pfdentry->FDENTRY_oftPtr += (off_t)sstWriteNum;             /*  更新文件指针                */
-                pfdnode->FDNODE_oftSize   = (off_t)plfsn->LFSN_stSize;
+                pfdentry->FDENTRY_oftPtr += (off_t)sstWriteNum;        /*  更新文件指针                */
+                lfs_file_seek(&plfsn->LFSN_plfs->lfst, &plfsn->lfsfile,sstWriteNum,LFS_SEEK_CUR);
+                pfdnode->FDNODE_oftSize   = lfs_file_size(&plfsn->LFSN_plfs->lfst, &plfsn->lfsfile);
         }
     } else {
         sstWriteNum = 0;
@@ -748,7 +811,8 @@ static ssize_t  __littleFsPWrite (PLW_FD_ENTRY  pfdentry,
         }
         if (sstWriteNum > 0) {
                 pfdentry->FDENTRY_oftPtr += (off_t)sstWriteNum;             /*  更新文件指针                */
-                pfdnode->FDNODE_oftSize   = (off_t)plfsn->LFSN_stSize;
+                lfs_file_seek(&plfsn->LFSN_plfs->lfst, &plfsn->lfsfile,sstWriteNum,LFS_SEEK_CUR);
+                pfdnode->FDNODE_oftSize   = lfs_file_size(&plfsn->LFSN_plfs->lfst, &plfsn->lfsfile);
         }
     } else {
         sstWriteNum = 0;
@@ -903,7 +967,7 @@ static INT  __littleFsWhere (PLW_FD_ENTRY  pfdentry, off_t  *poftPos)
     return  (PX_ERROR);
 }
 /*********************************************************************************************************
-** 函数名称: __littleFsStatGet
+** 函数名称: __littleFsStat
 ** 功能描述: lfsFs stat 操作
 ** 输　入  : pfdentry         文件控制块
 **           pstat            文件状态
@@ -935,6 +999,46 @@ static INT  __littleFsStat (PLW_FD_ENTRY  pfdentry, struct stat *pstat)
 }
 
 /*********************************************************************************************************
+** 函数名称: __littleFsLStat
+** 功能描述: littleFs stat 操作, 通过文件名获取文件状态 
+** 输　入  : pfs               lfs 文件系统
+**           pcName           文件名
+**           pstat            文件状态
+** 输　出  : < 0 表示错误
+** 全局变量:
+** 调用模块:
+*********************************************************************************************************/
+static INT  __littleFsLStat(PLFS_VOLUME  pfs, PCHAR  pcName, struct stat* pstat)
+{   
+    PLW_FD_NODE         pfdnode;
+
+    if (!pcName || !pstat) {
+        _ErrorHandle(EINVAL);
+        return  (PX_ERROR);
+    }
+
+    if (__LFS_VOL_LOCK(pfs) != ERROR_NONE) {
+        _ErrorHandle(ENXIO);
+        return  (PX_ERROR);
+    }
+
+    pfdnode = __littleFsOpen(pfs, pcName, O_RDONLY, O_RDONLY);
+    if (pfdnode) {
+        __lfs_stat((PLFS_NODE)pfdnode->FDNODE_pvFile, pfs, pstat);
+    } else if (pcName[0] == PX_EOS) {                                /* 文件系统根目录 */
+        __lfs_stat(LW_NULL, pfs, pstat);
+    } else {
+        __LFS_VOL_UNLOCK(pfs);
+        _ErrorHandle(ENOENT);
+        return  (PX_ERROR);        
+    }
+
+    __LFS_VOL_UNLOCK(pfs);
+
+    return  (ERROR_NONE);
+}
+
+/*********************************************************************************************************
 ** 函数名称: __littleFsStatfs
 ** 功能描述: lfsFs statfs 操作
 ** 输　入  : pfdentry         文件控制块
@@ -945,8 +1049,8 @@ static INT  __littleFsStat (PLW_FD_ENTRY  pfdentry, struct stat *pstat)
 *********************************************************************************************************/
 static INT  __littleFsStatfs (PLW_FD_ENTRY  pfdentry, struct statfs *pstatfs)
 {
-    PLW_FD_NODE   pfdnode = (PLW_FD_NODE)pfdentry->FDENTRY_pfdnode;
-    PLFS_VOLUME   pfs  = (PLFS_VOLUME)pfdnode->FDNODE_pvFsExtern;
+    PLW_FD_NODE   pfdnode = (PLW_FD_NODE)pfdentry->FDENTRY_pfdnode  ;
+    PLFS_VOLUME   pfs     = (PLFS_VOLUME)pfdnode ->FDNODE_pvFsExtern;
 
     if (!pstatfs) {
         _ErrorHandle(EINVAL);
@@ -977,9 +1081,9 @@ static INT  __littleFsStatfs (PLW_FD_ENTRY  pfdentry, struct statfs *pstatfs)
 *********************************************************************************************************/
 static INT  __littleFsTimeset (PLW_FD_ENTRY  pfdentry, struct utimbuf  *utim)
 {
-    PLW_FD_NODE   pfdnode = (PLW_FD_NODE)pfdentry->FDENTRY_pfdnode;
-    PLFS_NODE     plfsn   = (PLFS_NODE)pfdnode->FDNODE_pvFile;
-    PLFS_VOLUME   pfs  = (PLFS_VOLUME)pfdnode->FDNODE_pvFsExtern;
+    PLW_FD_NODE   pfdnode = (PLW_FD_NODE)pfdentry->FDENTRY_pfdnode ;
+    PLFS_NODE     plfsn   = (PLFS_NODE)  pfdnode->FDNODE_pvFile    ;
+    PLFS_VOLUME   pfs     = (PLFS_VOLUME)pfdnode->FDNODE_pvFsExtern;
 
     if (!utim) {
         _ErrorHandle(EINVAL);
@@ -1001,6 +1105,80 @@ static INT  __littleFsTimeset (PLW_FD_ENTRY  pfdentry, struct utimbuf  *utim)
 
     __LFS_VOL_UNLOCK(pfs);
 
+    return  (ERROR_NONE);
+}
+
+/*********************************************************************************************************
+** 函数名称: __littleFsReadDir
+** 功能描述: littleFs 获得指定目录信息
+** 输　入  : pfdentry            文件控制块
+**           dir                 目录结构
+** 输　出  : < 0 表示错误
+** 全局变量:
+** 调用模块:
+*********************************************************************************************************/
+static INT  __littleFsReadDir (PLW_FD_ENTRY  pfdentry, DIR  *dir)
+{
+    PLW_FD_NODE   pfdnode = (PLW_FD_NODE)pfdentry->FDENTRY_pfdnode ;
+    PLFS_NODE     plfsn   = (PLFS_NODE)  pfdnode->FDNODE_pvFile    ;
+    PLFS_VOLUME   plfs    = (PLFS_VOLUME)pfdnode->FDNODE_pvFsExtern;
+    
+    if (!dir) {
+        _ErrorHandle(EINVAL);
+        return  (PX_ERROR);
+    }
+    
+    if (__LFS_VOL_LOCK(plfs) != ERROR_NONE) {
+        _ErrorHandle(ENXIO);
+        return  (PX_ERROR);
+    }
+
+    /**************************************** TODO *******************************************/
+    if (plfsn == LW_NULL) {
+        // printf("ERROR: plfsn is NULL!\r\n");
+        __LFS_VOL_UNLOCK(plfs);
+        return (PX_ERROR);
+    } else {
+        if (!S_ISDIR(plfsn->LFSN_mode)) {
+            __LFS_VOL_UNLOCK(plfs);
+            _ErrorHandle(ENOTDIR);
+            return (PX_ERROR);
+        }
+    }
+
+    struct lfs_info lfsdirinfo;
+    int dirreaderr;
+    if(!plfsn->isfile){
+        dirreaderr = lfs_dir_read(&plfs->lfst, &plfsn->lfsdir, &lfsdirinfo);
+        if(dirreaderr>0){
+            // printf("dir read success in %d! %d\r\n",plfsn->lfsdir.pos,dirreaderr);
+        }else if(dirreaderr<0){
+            // printf("ERROR: dir read fail in %d! type:%08x\r\n",plfsn->lfsdir.pos,lfsdirinfo.type);
+            __LFS_VOL_UNLOCK(plfs);
+            return (PX_ERROR);
+        }else{
+            _ErrorHandle(ENOENT);                               /*  没有多余的节点              */
+            __LFS_VOL_UNLOCK(plfs);
+            return (PX_ERROR);
+        }
+    }else{
+        // printf("ERROR: plfsn is a file!\r\n");
+        __LFS_VOL_UNLOCK(plfs);
+        return (PX_ERROR);
+    }
+
+    // printf("dir->dir_pos: %ld", dir->dir_pos);
+    dir->dir_pos++;
+    
+    lib_strlcpy(dir->dir_dirent.d_name, 
+                lfsdirinfo.name,
+                sizeof(dir->dir_dirent.d_name));
+                
+    dir->dir_dirent.d_type = type_lfs2sylix(lfsdirinfo.type);
+    dir->dir_dirent.d_shortname[0] = PX_EOS;
+
+    __LFS_VOL_UNLOCK(plfs);
+    
     return  (ERROR_NONE);
 }
 
@@ -1037,10 +1215,10 @@ static INT  __littleFsIoctl (PLW_FD_ENTRY  pfdentry,
 
     switch (iRequest) {
 
-    case FIODISKINIT:                                                   /*  磁盘初始化                  */
+    case FIODISKINIT:                                                   /*  磁盘初始化                         */
         return  (ERROR_NONE);
 
-    case FIOSEEK:                                                       /*  文件重定位                  */
+    case FIOSEEK:                                                       /*  文件重定位                         */
         oftTemp = *(off_t *)lArg;
         return  (__littleFsSeek(pfdentry, oftTemp));
 
@@ -1065,7 +1243,7 @@ static INT  __littleFsIoctl (PLW_FD_ENTRY  pfdentry,
             return  (ERROR_NONE);
         }
 
-//    case FIORENAME:                                                     /*  文件重命名                  */
+//    case FIORENAME:                                                   /*  文件重命名                  */
 //        return  (__littleFsRename(pfdentry, (PCHAR)lArg));
 //
     case FIOLABELGET:                                                   /*  获取卷标                    */
@@ -1079,8 +1257,8 @@ static INT  __littleFsIoctl (PLW_FD_ENTRY  pfdentry,
     case FIOFSTATFSGET:                                                 /*  获得文件系统状态            */
         return  (__littleFsStatfs(pfdentry, (struct statfs *)lArg));
 
-//    case FIOREADDIR:                                                    /*  获取一个目录信息            */
-//        return  (__littleFsReadDir(pfdentry, (DIR *)lArg));
+   case FIOREADDIR:                                                    /*  获取一个目录信息            */
+       return  (__littleFsReadDir(pfdentry, (DIR *)lArg));
 
     case FIOTIMESET:                                                    /*  设置文件时间                */
         return  (__littleFsTimeset(pfdentry, (struct utimbuf *)lArg));
@@ -1166,7 +1344,7 @@ LW_API INT  API_LittleFsDrvInstall(void)
     fileop.fo_read_ex = __littleFsPRead;
     fileop.fo_write = __littleFsWrite;
     fileop.fo_write_ex = __littleFsPWrite;
-    fileop.fo_lstat = __littleFsStat;
+    fileop.fo_lstat = __littleFsLStat;
     fileop.fo_ioctl = __littleFsIoctl;
     // fileop.fo_symlink = __lfsFsSymlink;
     // fileop.fo_readlink = __lfsFsReadlink;
@@ -1241,11 +1419,11 @@ LW_API INT  API_LittleFsDevCreate(PCHAR   pcName, PLW_BLK_DEV  pblkd)
 
     int mounterr = lfs_mount(&pfs->lfst, &cfg);
     if(mounterr < 0){
-        printf("first lfs inner mount failed!\n");
-        int formaterr = lfs_format(&pfs->lfst, &cfg);
-        if(formaterr<0) printf("first lfs inner formaterr failed!\n");
+        // printf("first lfs inner mount failed!\r\n");
+        lfs_format(&pfs->lfst, &cfg);
+        // if(formaterr<0) printf("first lfs inner formaterr failed!\r\n");
         mounterr = lfs_mount(&pfs->lfst, &cfg);
-        if(mounterr<0) printf("second lfs inner mount failed!\n");
+        // if(mounterr<0) printf("second lfs inner mount failed!\r\n");
     }
 
     if (iosDevAddEx(&pfs->LFS_devhdrHdr, pcName, _G_iLittleFsDrvNum, DT_DIR)
