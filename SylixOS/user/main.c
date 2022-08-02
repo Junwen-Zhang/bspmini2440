@@ -4,8 +4,8 @@
 #include "unistd.h"
 #include "sys/utsname.h"
 #include "stdlib.h"
-#include "shell/fsLib/ttinyShellFsCmd.h"
-#include "appl/editors/vi/src/vi.c"
+//#include "shell/fsLib/ttinyShellFsCmd.h"
+//#include "appl/editors/vi/src/vi.c"
 //#include "extfs/littleFs/lfs_port.h"
 //#include "fs/romFs/romFs.h"
 
@@ -22,10 +22,10 @@ int  t_main (void)
     printf("machine  : %s\n", name.machine);
 
 
-    PCHAR mountcmd[5]={"mount","-t","lfs","/root/1","/mnt/lfs"};
-    int mountargs=5;
-    __tshellFsCmdMount(mountargs,mountcmd);
-    printf("@@__tshellFsCmdMount end!\n\n");
+//    PCHAR mountcmd[5]={"mount","-t","lfs","/root/1","/mnt/lfs"};
+//    int mountargs=5;
+//    __tshellFsCmdMount(mountargs,mountcmd);
+//    printf("@@__tshellFsCmdMount end!\n\n");
 
 
 //    PCHAR mountcmd[5]={"mount","-t","ramfs","/root/1","/mnt/ramfs"};
