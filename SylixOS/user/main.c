@@ -40,18 +40,18 @@ int  t_main (void)
 //    printf("@@__tshellFsCmdCd end!\n\n");
 //
 //
-//    PCHAR mkdircmd[2]={"mkdir","/mnt/lfs/zjwdir"};
-//    int mkdirargs=2;
-//    __tshellFsCmdMkdir(mkdirargs,mkdircmd);
-//    printf("@@__tshellFsCmdMkdir end!\n\n");
+    PCHAR mkdircmd[2]={"mkdir","/mnt/lfs/zjwdir"};
+    int mkdirargs=2;
+    __tshellFsCmdMkdir(mkdirargs,mkdircmd);
+    printf("@@__tshellFsCmdMkdir end!\n\n");
 
 
-//    PCHAR touchcmd[2]={"touch","/mnt/lfs/zjwfile"};
-//    int touchargs=2;
-//    __tshellFsCmdTouch(touchargs,touchcmd);
-//    printf("@@__tshellFsCmdTouch end!\n\n");
+    PCHAR touchcmd[2]={"touch","/mnt/lfs/zjwfile"};
+    int touchargs=2;
+    __tshellFsCmdTouch(touchargs,touchcmd);
+    printf("@@__tshellFsCmdTouch end!\n\n");
 
-//    PCHAR vicmd[2]={"vi","/mnt/lfs3/vifile"};
+    PCHAR vicmd[2]={"vi","/mnt/lfs3/vifile"};
 //    int viargs=2;
 //    vi_main(viargs,vicmd);
 //    printf("vi_main end!\n\n");
