@@ -358,7 +358,7 @@ static inline PLFS_NODE __lfs_maken (PLFS_VOLUME plfs,
     int err = 0;
 
     PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE)); /*    申请内存，创建节点       */
-    printf("__lfs_maken(): PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));\r\n");
+    // printf("__lfs_maken(): PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));\r\n");
     if (plfsn == LW_NULL){
         _ErrorHandle(ENOMEM);
         return  (NULL);
@@ -369,16 +369,16 @@ static inline PLFS_NODE __lfs_maken (PLFS_VOLUME plfs,
         err = lfs_file_open(&plfs->lfst, &plfsn->lfsfile, pcName,
                 genLfsFlag(mode, 0)|LFS_O_CREAT);
         if(err >= 0){
-            printf("__lfs_maken(): SLINK open success!\r\n");
+            // printf("__lfs_maken(): SLINK open success!\r\n");
             __lfs_init_plfsn(plfsn, plfs, mode|S_IFLNK);
             plfsn->isfile = true;
             err = lfs_setattr(&plfs->lfst, pcName, LFS_TYPE_SLINK, 
                               pcLink, lib_strlen(pcLink));
             if(err >= 0) {
-                printf("lfs_setattr() success!\r\n");
+                // printf("lfs_setattr() success!\r\n");
                 plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(lib_strlen(pcLink)+1);
-                printf("%%% __lfs_maken(): plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(lib_strlen(pcLink)+1);\r\n");
-                printf("size: %d , p: %p \r\n",lib_strlen(pcLink)+1, plfsn->LFSN_pcLink);
+                // printf("%%% __lfs_maken(): plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(lib_strlen(pcLink)+1);\r\n");
+                // printf("size: %d , p: %p \r\n",lib_strlen(pcLink)+1, plfsn->LFSN_pcLink);
                 if(plfsn->LFSN_pcLink == LW_NULL){
                     __SHEAP_FREE(plfsn);
                     _ErrorHandle(ENOMEM);
@@ -386,18 +386,18 @@ static inline PLFS_NODE __lfs_maken (PLFS_VOLUME plfs,
                 }
                 lib_strncpy(plfsn->LFSN_pcLink, pcLink, lib_strlen(pcLink)+1);
             }
-            else printf("lfs_setattr() failed!\r\n");
+            // else printf("lfs_setattr() failed!\r\n");
 //            lfs_file_close(&plfs->lfst, &plfsn->lfsfile);
         }else{
-            printf("__lfs_maken(): SLINK open failed!\r\n");
+            // printf("__lfs_maken(): SLINK open failed!\r\n");
         }
     } else if (S_ISDIR(mode)){
         err = lfs_mkdir(&plfs->lfst, pcName);                     /*     创建操作(目录)      */
         if(err >= 0) {
-             printf("__lfs_maken(): lfs_mkdir sucess!\r\n");
+            //  printf("__lfs_maken(): lfs_mkdir sucess!\r\n");
             err = lfs_dir_open(&plfs->lfst, &plfsn->lfsdir, pcName);
             if(err >= 0){
-                 printf("__lfs_maken(): lfs_dir_open sucess!\r\n");
+                //  printf("__lfs_maken(): lfs_dir_open sucess!\r\n");
                 __lfs_init_plfsn(plfsn, plfs, mode|S_IFDIR);
                 plfsn->isfile = false;
                 plfsn->LFSN_pcLink = LW_NULL;
@@ -408,7 +408,7 @@ static inline PLFS_NODE __lfs_maken (PLFS_VOLUME plfs,
         err = lfs_file_open(&plfs->lfst, &plfsn->lfsfile, pcName,
                 genLfsFlag(mode, 0)|LFS_O_CREAT);
         if(err >= 0){
-             printf("__lfs_maken(): lfs_file_open with create sucess!\r\n");
+            //  printf("__lfs_maken(): lfs_file_open with create sucess!\r\n");
             __lfs_init_plfsn(plfsn, plfs, mode|S_IFREG);
             plfsn->isfile = true;
             plfsn->LFSN_pcLink = LW_NULL;
@@ -418,7 +418,7 @@ static inline PLFS_NODE __lfs_maken (PLFS_VOLUME plfs,
 
     if (err < 0) {
         __SHEAP_FREE(plfsn);
-         printf("__lfs_maken(): failed ! \r\n");
+        //  printf("__lfs_maken(): failed ! \r\n");
         return LW_NULL;
     }
     return  plfsn;
@@ -445,12 +445,12 @@ static inline PLFS_NODE __lfs_open (PLFS_VOLUME pfs,
     }
 
     if (iFlags & O_CREAT){
-         printf("in func(__lfs_open), node can't be made.\r\n");
+        //  printf("in func(__lfs_open), node can't be made.\r\n");
         return (NULL);
     }
 
     PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));         /*  申请内存，创建节点    */
-    printf("__lfs_open(): PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));\r\n");
+    // printf("__lfs_open(): PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));\r\n");
     if (plfsn == LW_NULL){
         _ErrorHandle(ENOMEM);
         return  (NULL);
@@ -471,8 +471,8 @@ static inline PLFS_NODE __lfs_open (PLFS_VOLUME pfs,
         }else{                                                           /*    链接文件类型         */
             __lfs_init_plfsn(plfsn, pfs, iMode|S_IFLNK);
             plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(getattr+1);
-            printf("%%% __lfs_open(): plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(getattr+1);\r\n");
-            printf("size: %d , p: %p \r\n",getattr+1, plfsn->LFSN_pcLink);
+            // printf("%%% __lfs_open(): plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(getattr+1);\r\n");
+            // printf("size: %d , p: %p \r\n",getattr+1, plfsn->LFSN_pcLink);
             lib_strncpy(plfsn->LFSN_pcLink, (PCHAR)pcLink, getattr+1);
             printf("lfs_file_open() success, type is link!\r\n");
         } 
@@ -492,7 +492,7 @@ static inline PLFS_NODE __lfs_open (PLFS_VOLUME pfs,
         return NULL;
     }
 
-    printf("_lfs_open() end, plfsn: %p  %d !\r\n\r\n",plfsn,(int)plfsn);
+    // printf("_lfs_open() end, plfsn: %p  %d !\r\n\r\n",plfsn,(int)plfsn);
     return plfsn;
 }
 
@@ -501,24 +501,24 @@ static inline INT  __lfs_unlink (PLFS_NODE  plfsn)
 {
     PLFS_VOLUME     plfs = plfsn->LFSN_plfs;
     
-    // if (plfsn!=NULL && plfsn!=PX_ERROR && S_ISDIR(plfsn->LFSN_mode)) {          /* 判断目录不为空 */                               /*    文件夹若要删除，必须为空    */
-    //     lfs_dir_rewind(&plfs->lfst, &plfsn->lfsdir);
-    //     struct lfs_info infotemp;
-    //     int err = lfs_dir_read(&plfs->lfst, &plfsn->lfsdir, &infotemp);
-    //     if(err > 0) {
-    //          printf("__lfs_unlink(): the dir is not empty, and can't move!\r\n");
-    //         return (PX_ERROR);
-    //     }else{
-    //          printf("__lfs_unlink: dir remove success!\r\n");
-    //     }
-    // }
+    if (plfsn!=NULL && plfsn!=PX_ERROR && S_ISDIR(plfsn->LFSN_mode)) {          /* 判断目录不为空 */                               /*    文件夹若要删除，必须为空    */
+        lfs_dir_rewind(&plfs->lfst, &plfsn->lfsdir);
+        struct lfs_info infotemp;
+        int err = lfs_dir_read(&plfs->lfst, &plfsn->lfsdir, &infotemp);
+        if(err > 0) {
+             printf("__lfs_unlink(): the dir is not empty, and can't move!\r\n");
+            return (PX_ERROR);
+        }else{
+             printf("__lfs_unlink: dir remove success!\r\n");
+        }
+    }
     if(plfsn->LFSN_pcLink != LW_NULL){
-        printf("*** __lfs_unlink(): __SHEAP_FREE(plfsn->LFSN_pcLink); p: %p",plfsn->LFSN_pcLink);
+        // printf("*** __lfs_unlink(): __SHEAP_FREE(plfsn->LFSN_pcLink); p: %p",plfsn->LFSN_pcLink);
         __SHEAP_FREE(plfsn->LFSN_pcLink);
 
     }
     __SHEAP_FREE(plfsn);
-    printf("NNNNNDDDDD __lfs_unlink(): __SHEAP_FREE(plfsn);\r\n");
+    // printf("NNNNNDDDDD __lfs_unlink(): __SHEAP_FREE(plfsn);\r\n");
     printf("__lfs_unlink() end!\r\n\r\n");
     return  (ERROR_NONE);
 }

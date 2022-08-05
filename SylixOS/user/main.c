@@ -40,6 +40,7 @@ int  t_main (void)
 //    printf("@@__tshellFsCmdCd end!\n\n");
 //
 //
+
     PCHAR mkdircmd[2]={"mkdir","/mnt/lfs/d1"};
     int mkdirargs=2;
     __tshellFsCmdMkdir(mkdirargs,mkdircmd);
@@ -55,11 +56,12 @@ int  t_main (void)
     int lnargs = 3;
     __tshellFsCmdLn(lnargs, lncmd);
     printf("@@__tshellFsCmdLn end!\n\n");
+//
+//    PCHAR catcmd[2]={"cat", "/mnt/lfs/f2"};
+//    int catargs = 2;
+//    __tshellFsCmdCat( catargs, catcmd);
+//    printf("@@__tshellFsCmdCat end!\n\n");
 
-    PCHAR catcmd[2]={"cat", "/mnt/lfs/f2"};
-    int catargs = 2;
-    __tshellFsCmdCat( catargs, catcmd);
-    printf("@@__tshellFsCmdCat end!\n\n");
 //    PCHAR vicmd[2]={"vi","/mnt/lfs3/vifile"};
 //    int viargs=2;
 //    vi_main(viargs,vicmd);
