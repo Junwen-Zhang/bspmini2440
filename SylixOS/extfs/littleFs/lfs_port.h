@@ -87,20 +87,20 @@ typedef LFS_VOLUME*     PLFS_VOLUME;
 typedef struct lfs_node {
     PLFS_VOLUME         LFSN_plfs;                                      /*       文件系统               */
 
-    BOOL                LFSN_bChanged;                                  /*       文件内容是否更改        */
+    BOOL                LFSN_bChanged;                                  /*       文件内容是否更改          */
     mode_t              LFSN_mode;                                      /*       文件 mode              */
-    time_t              LFSN_timeCreate;                                /*       创建时间               */
-    time_t              LFSN_timeAccess;                                /*       最后访问时间            */
-    time_t              LFSN_timeChange;                                /*       最后修改时间            */
+    time_t              LFSN_timeCreate;                                /*       创建时间                        */
+    time_t              LFSN_timeAccess;                                /*       最后访问时间                 */
+    time_t              LFSN_timeChange;                                /*       最后修改时间                 */
 
-    size_t              LFSN_stSize;                                    /*  当前文件大小 (可能大于缓冲)   */
-    size_t              LFSN_stVSize;                                   /*      lseek 出的虚拟大小       */
+    size_t              LFSN_stSize;                                    /*  当前文件大小 (可能大于缓冲) */
+    size_t              LFSN_stVSize;                                   /*      lseek 出的虚拟大小        */
 
-    uid_t               LFSN_uid;                                       /*         用户 id              */
-    gid_t               LFSN_gid;                                       /*         组   id              */
+    uid_t               LFSN_uid;                                       /*         用户 id            */
+    gid_t               LFSN_gid;                                       /*         组   id             */
     
-    // PCHAR               LFSN_pcLink;                                 /*         链接目标              */
     /* 有两种类型，根据isfile判断，lfsdir和lfsfile其中一个为空 */
+    PCHAR               LFSN_pcLink;                                    /*         链接目标              */
     bool                isfile;
     lfs_dir_t           lfsdir;
     lfs_file_t          lfsfile;
@@ -111,31 +111,53 @@ typedef LFS_NODE*       PLFS_NODE;
 *                                           LFS与Sylix转换函数                                             *
 ***********************************************************************************************************/
 
-/* 用于文件打开标记的转换（包括读写权限，是否创建） */
-static int mode_lfs2sylix(int lfsmode){
+static int genSylixMode(int lfsType, int lfsFlag){
     int temp = 0;
-    if (lfsmode & LFS_O_RDONLY)    temp |= O_RDONLY;
-    if (lfsmode & LFS_O_WRONLY)    temp |= O_WRONLY;
-    if (lfsmode & LFS_O_RDWR)      temp |= O_RDWR;
-    if (lfsmode & LFS_O_CREAT)     temp |= O_CREAT;
-    return temp;
-}
-static int mode_sylix2lfs(int sylixmode){
-    int temp = 0;
-    if(sylixmode == O_RDONLY)   temp |= LFS_O_RDONLY;
-    if(sylixmode & O_WRONLY)    temp |= LFS_O_WRONLY;
-    if(sylixmode & O_RDWR)      temp |= LFS_O_RDWR;
-    if(sylixmode & O_CREAT)     temp |= LFS_O_CREAT;
+    if (lfsFlag & LFS_O_RDONLY)    temp |= O_RDONLY;
+    if (lfsFlag & LFS_O_WRONLY)    temp |= O_WRONLY;
+    if (lfsFlag & LFS_O_RDWR)      temp |= O_RDWR;
+
+    if (lfsType & LFS_TYPE_REG)   temp |= S_IFREG;
+    if (lfsType & LFS_TYPE_DIR)   temp |= S_IFDIR;
+    if (lfsType & LFS_TYPE_SLINK) temp |= S_IFLNK;
     return temp;
 }
 
-/* 用于文件类型的转换 */
-static int type_lfs2sylix(int lfstype){
+static int genSylixFlag(int lfsFlag){
     int temp = 0;
-    if (lfstype & LFS_TYPE_REG)    temp |= S_IFREG;
-    if (lfstype & LFS_TYPE_DIR)    temp |= S_IFDIR;
+    if (lfsFlag & LFS_O_CREAT)     temp |= O_CREAT;
+    if (lfsFlag & LFS_O_EXCL)      temp |= O_EXCL;
+    if (lfsFlag & LFS_O_TRUNC)     temp |= O_TRUNC;
+    if (lfsFlag & LFS_O_APPEND)    temp |= O_APPEND; 
     return temp;
 }
+
+static int genLfsFlag(int sylixMode, int sylixFlag){
+    int temp = 0;
+    if (sylixFlag & O_CREAT)     temp |= LFS_O_CREAT;
+    if (sylixFlag & O_EXCL)      temp |= LFS_O_EXCL;
+    if (sylixFlag & O_TRUNC)     temp |= LFS_O_TRUNC;
+    if (sylixFlag & O_APPEND)    temp |= LFS_O_APPEND; 
+
+    if (sylixMode & O_WRONLY)    temp |= LFS_O_WRONLY;
+    if (sylixMode & O_RDWR)      temp |= LFS_O_RDWR;
+    if ( !(sylixMode & O_WRONLY) && !(sylixMode & O_RDWR))
+        temp |= LFS_O_RDONLY;
+    return temp;
+}
+
+static int genLfsType(int sylixMode){
+    int temp = 0;
+    if (sylixMode & S_IFREG)   temp |= LFS_TYPE_REG;
+    if (sylixMode & S_IFDIR)   temp |= LFS_TYPE_DIR;
+    if (sylixMode & S_IFLNK)   temp |= LFS_TYPE_SLINK;
+    return temp;
+}
+
+
+/**********************************************************************************************************
+*                                              常用的宏定义                                                *
+***********************************************************************************************************/
 
 #define __LFS_FILE_LOCK(plfsn)        API_SemaphoreMPend(plfsn->LFSN_plfs->LFS_hVolLock, \
                                       LW_OPTION_WAIT_INFINITE)
@@ -330,43 +352,74 @@ static inline void  __lfs_statfs (PLFS_VOLUME  pfs,
 /* 创建节点，并打开，信息保存在plfsn中返回 */
 static inline PLFS_NODE __lfs_maken (PLFS_VOLUME plfs,
                                      PCHAR       pcName,
-                                     INT         iFlag,
-                                     mode_t      mode)
+                                     mode_t      mode,
+                                     PCHAR       pcLink)
 {
     int err = 0;
 
-    PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE)); /*   申请内存，创建节点    */
+    PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE)); /*    申请内存，创建节点       */
+    printf("__lfs_maken(): PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));\r\n");
     if (plfsn == LW_NULL){
         _ErrorHandle(ENOMEM);
         return  (NULL);
     }
-    lib_bzero(plfsn,sizeof(LFS_NODE));                            /*       节点清空         */
+    lib_bzero(plfsn,sizeof(LFS_NODE));                            /*       节点清空          */
 
-    if(S_ISDIR(mode)){
+    if (S_ISLNK(mode)){                                           /*     创建操作(链接)      */
+        err = lfs_file_open(&plfs->lfst, &plfsn->lfsfile, pcName,
+                genLfsFlag(mode, 0)|LFS_O_CREAT);
+        if(err >= 0){
+            printf("__lfs_maken(): SLINK open success!\r\n");
+            __lfs_init_plfsn(plfsn, plfs, mode|S_IFLNK);
+            plfsn->isfile = true;
+            err = lfs_setattr(&plfs->lfst, pcName, LFS_TYPE_SLINK, 
+                              pcLink, lib_strlen(pcLink));
+            if(err >= 0) {
+                printf("lfs_setattr() success!\r\n");
+                plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(lib_strlen(pcLink)+1);
+                printf("%%% __lfs_maken(): plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(lib_strlen(pcLink)+1);\r\n");
+                printf("size: %d , p: %p \r\n",lib_strlen(pcLink)+1, plfsn->LFSN_pcLink);
+                if(plfsn->LFSN_pcLink == LW_NULL){
+                    __SHEAP_FREE(plfsn);
+                    _ErrorHandle(ENOMEM);
+                    return (LW_NULL);
+                }
+                lib_strncpy(plfsn->LFSN_pcLink, pcLink, lib_strlen(pcLink)+1);
+            }
+            else printf("lfs_setattr() failed!\r\n");
+//            lfs_file_close(&plfs->lfst, &plfsn->lfsfile);
+        }else{
+            printf("__lfs_maken(): SLINK open failed!\r\n");
+        }
+    } else if (S_ISDIR(mode)){
         err = lfs_mkdir(&plfs->lfst, pcName);                     /*     创建操作(目录)      */
         if(err >= 0) {
-            // printf("__lfs_maken(): lfs_mkdir sucess!\r\n");
+             printf("__lfs_maken(): lfs_mkdir sucess!\r\n");
             err = lfs_dir_open(&plfs->lfst, &plfsn->lfsdir, pcName);
             if(err >= 0){
-                // printf("__lfs_maken(): lfs_dir_open sucess!\r\n");
+                 printf("__lfs_maken(): lfs_dir_open sucess!\r\n");
                 __lfs_init_plfsn(plfsn, plfs, mode|S_IFDIR);
                 plfsn->isfile = false;
+                plfsn->LFSN_pcLink = LW_NULL;
             }
+            lfs_dir_close(&plfs->lfst, &plfsn->lfsdir);
         }
-    }else{                                                        /*     创建操作(文件)      */
+    } else {                                                      /*     创建操作(文件)      */
         err = lfs_file_open(&plfs->lfst, &plfsn->lfsfile, pcName,
-                            mode_sylix2lfs(iFlag)|LFS_O_CREAT);
+                genLfsFlag(mode, 0)|LFS_O_CREAT);
         if(err >= 0){
-            // printf("__lfs_maken(): lfs_file_open with create sucess!\r\n");
+             printf("__lfs_maken(): lfs_file_open with create sucess!\r\n");
             __lfs_init_plfsn(plfsn, plfs, mode|S_IFREG);
             plfsn->isfile = true;
+            plfsn->LFSN_pcLink = LW_NULL;
+//            lfs_file_close(&plfs->lfst, &plfsn->lfsfile);
         }
     }
 
     if (err < 0) {
         __SHEAP_FREE(plfsn);
-        // printf("__lfs_maken(): failed ! \r\n");
-        return NULL;
+         printf("__lfs_maken(): failed ! \r\n");
+        return LW_NULL;
     }
     return  plfsn;
 }
@@ -375,67 +428,98 @@ static inline PLFS_NODE __lfs_maken (PLFS_VOLUME plfs,
 static inline PLFS_NODE __lfs_open (PLFS_VOLUME pfs,
                                     PCHAR       pcName,
                                     INT         iFlags,
-                                    INT         iMode)
+                                    INT         iMode,
+                                    BOOL*       broot)
 {
     int err = 0;
+    CHAR pcLink[256];
+
+    /* 首先判断是否是文件系统根目录 */
+    *broot = FALSE;
+    if (*pcName == PX_ROOT) {                                     /*       忽略根符号       */
+        if (pcName[1] == PX_EOS) *broot= TRUE;
+        else *broot = FALSE;
+    } else {
+        if (pcName[0] == PX_EOS) *broot= TRUE;
+        else *broot = FALSE;
+    }
 
     if (iFlags & O_CREAT){
-        // printf("in func(__lfs_open), node can't be made.\r\n");
+         printf("in func(__lfs_open), node can't be made.\r\n");
         return (NULL);
     }
 
-    PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE)); /*   申请内存，创建节点    */
+    PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));         /*  申请内存，创建节点    */
+    printf("__lfs_open(): PLFS_NODE plfsn = (PLFS_NODE)__SHEAP_ALLOC(sizeof(LFS_NODE));\r\n");
     if (plfsn == LW_NULL){
         _ErrorHandle(ENOMEM);
         return  (NULL);
     }
-    lib_bzero(plfsn,sizeof(LFS_NODE));                            /*       节点清空         */
+    lib_bzero(plfsn,sizeof(LFS_NODE));                                    /*     节点清空             */
     
     /* 这里不用iMode判断文件还是目录，是因为有时信息未读取，iMode未知。*/
-    err = lfs_file_open(&pfs->lfst, &plfsn->lfsfile, 
-                                pcName, mode_sylix2lfs(iFlags));
+    err = lfs_file_open(&pfs->lfst, &plfsn->lfsfile,             //TODO
+                                pcName, genLfsFlag(iMode, iFlags));
     if(err >= 0){
         plfsn->isfile = true;
-        __lfs_init_plfsn(plfsn, pfs, iMode|S_IFREG);
-        // printf("lfs_file_open() success!\r\n");
-    }else{
+        int getattr = lfs_getattr(&pfs->lfst, pcName, LFS_TYPE_SLINK,
+                                  (PCHAR)pcLink, 256);
+        if(getattr < 0){                                                 /*    单纯的文件类型      */
+            __lfs_init_plfsn(plfsn, pfs, iMode|S_IFREG);
+            plfsn->LFSN_pcLink = LW_NULL;
+            printf("lfs_file_open() success, type is file!\r\n");
+        }else{                                                           /*    链接文件类型         */
+            __lfs_init_plfsn(plfsn, pfs, iMode|S_IFLNK);
+            plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(getattr+1);
+            printf("%%% __lfs_open(): plfsn->LFSN_pcLink = (PCHAR)__SHEAP_ALLOC(getattr+1);\r\n");
+            printf("size: %d , p: %p \r\n",getattr+1, plfsn->LFSN_pcLink);
+            lib_strncpy(plfsn->LFSN_pcLink, (PCHAR)pcLink, getattr+1);
+            printf("lfs_file_open() success, type is link!\r\n");
+        } 
+    }else{                                                               /*    目录文件类型         */
         err = lfs_dir_open(&pfs->lfst, &plfsn->lfsdir, pcName);
-        if(err >= 0){
+        if(err >= 0){   
             plfsn->isfile = false;
+            plfsn->LFSN_pcLink = LW_NULL;
             __lfs_init_plfsn(plfsn, pfs, iMode|S_IFDIR);
-            // printf("lfs_dir_open() success!\r\n");
+             printf("lfs_dir_open() success, type is dir!\r\n");
         }
     }
 
     if (err < 0) {
         __SHEAP_FREE(plfsn);
-        // printf("_lfs_open() failed!\r\n\r\n");
+         printf("_lfs_open() failed!\r\n\r\n");
         return NULL;
     }
 
-    // printf("_lfs_open() end, plfsn: %p  %d !\r\n\r\n",plfsn,(int)plfsn);
+    printf("_lfs_open() end, plfsn: %p  %d !\r\n\r\n",plfsn,(int)plfsn);
     return plfsn;
 }
 
 /* 删除一个文件或文件夹节点 */
 static inline INT  __lfs_unlink (PLFS_NODE  plfsn)
 {
-    PLFS_VOLUME     plfs   = plfsn->LFSN_plfs;
+    PLFS_VOLUME     plfs = plfsn->LFSN_plfs;
     
-    if (plfsn!=NULL && plfsn!=PX_ERROR && S_ISDIR(plfsn->LFSN_mode)) {                                  /*    文件夹若要删除，必须为空    */
-        lfs_dir_rewind(&plfs->lfst, &plfsn->lfsdir);
-        struct lfs_info infotemp;
-        int err = lfs_dir_read(&plfs->lfst, &plfsn->lfsdir, &infotemp);
-        if(err > 0) {
-            // printf("__lfs_unlink(): the dir is not empty, and can't move!\r\n");
-            return (PX_ERROR);
-        }else{
-            // printf("__lfs_unlink: dir remove success!\r\n");
-        }
-    }
+    // if (plfsn!=NULL && plfsn!=PX_ERROR && S_ISDIR(plfsn->LFSN_mode)) {          /* 判断目录不为空 */                               /*    文件夹若要删除，必须为空    */
+    //     lfs_dir_rewind(&plfs->lfst, &plfsn->lfsdir);
+    //     struct lfs_info infotemp;
+    //     int err = lfs_dir_read(&plfs->lfst, &plfsn->lfsdir, &infotemp);
+    //     if(err > 0) {
+    //          printf("__lfs_unlink(): the dir is not empty, and can't move!\r\n");
+    //         return (PX_ERROR);
+    //     }else{
+    //          printf("__lfs_unlink: dir remove success!\r\n");
+    //     }
+    // }
+    if(plfsn->LFSN_pcLink != LW_NULL){
+        printf("*** __lfs_unlink(): __SHEAP_FREE(plfsn->LFSN_pcLink); p: %p",plfsn->LFSN_pcLink);
+        __SHEAP_FREE(plfsn->LFSN_pcLink);
 
+    }
     __SHEAP_FREE(plfsn);
-    // printf("__lfs_unlink() end!\r\n\r\n");
+    printf("NNNNNDDDDD __lfs_unlink(): __SHEAP_FREE(plfsn);\r\n");
+    printf("__lfs_unlink() end!\r\n\r\n");
     return  (ERROR_NONE);
 }
 

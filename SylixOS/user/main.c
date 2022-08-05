@@ -22,10 +22,10 @@ int  t_main (void)
     printf("machine  : %s\n", name.machine);
 
 
-//    PCHAR mountcmd[5]={"mount","-t","lfs","/root/1","/mnt/lfs"};
-//    int mountargs=5;
-//    __tshellFsCmdMount(mountargs,mountcmd);
-//    printf("@@__tshellFsCmdMount end!\n\n");
+    PCHAR mountcmd[5]={"mount","-t","lfs","/root/1","/mnt/lfs"};
+    int mountargs=5;
+    __tshellFsCmdMount(mountargs,mountcmd);
+    printf("@@__tshellFsCmdMount end!\n\n");
 
 
 //    PCHAR mountcmd[5]={"mount","-t","ramfs","/root/1","/mnt/ramfs"};
@@ -40,18 +40,27 @@ int  t_main (void)
 //    printf("@@__tshellFsCmdCd end!\n\n");
 //
 //
-    PCHAR mkdircmd[2]={"mkdir","/mnt/lfs/zjwdir"};
+    PCHAR mkdircmd[2]={"mkdir","/mnt/lfs/d1"};
     int mkdirargs=2;
     __tshellFsCmdMkdir(mkdirargs,mkdircmd);
     printf("@@__tshellFsCmdMkdir end!\n\n");
 
 
-    PCHAR touchcmd[2]={"touch","/mnt/lfs/zjwfile"};
+    PCHAR touchcmd[2]={"touch","/mnt/lfs/f1"};
     int touchargs=2;
     __tshellFsCmdTouch(touchargs,touchcmd);
     printf("@@__tshellFsCmdTouch end!\n\n");
 
-    PCHAR vicmd[2]={"vi","/mnt/lfs3/vifile"};
+    PCHAR lncmd[3]={"ln", "/mnt/lfs/f1","/mnt/lfs/f2"};
+    int lnargs = 3;
+    __tshellFsCmdLn(lnargs, lncmd);
+    printf("@@__tshellFsCmdLn end!\n\n");
+
+    PCHAR catcmd[2]={"cat", "/mnt/lfs/f2"};
+    int catargs = 2;
+    __tshellFsCmdCat( catargs, catcmd);
+    printf("@@__tshellFsCmdCat end!\n\n");
+//    PCHAR vicmd[2]={"vi","/mnt/lfs3/vifile"};
 //    int viargs=2;
 //    vi_main(viargs,vicmd);
 //    printf("vi_main end!\n\n");

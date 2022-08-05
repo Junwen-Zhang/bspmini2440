@@ -3,7 +3,8 @@
         "s_system.h": "c",
         "k_kernel.h": "c",
         "fscommon.h": "c",
-        "fake_nor.h": "c"
+        "fake_nor.h": "c",
+        "initializer_list": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled",
     "workbench.colorCustomizations": {

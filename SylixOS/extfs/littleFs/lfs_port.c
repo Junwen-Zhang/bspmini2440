@@ -55,8 +55,8 @@ LW_API INT  API_LittleFsDrvInstall(void)
     fileop.fo_write_ex = __littleFsPWrite;
     fileop.fo_lstat = __littleFsLStat;
     fileop.fo_ioctl = __littleFsIoctl;
-//    fileop.fo_symlink = __lfsFsSymlink;
-//    fileop.fo_readlink = __lfsFsReadlink;
+    fileop.fo_symlink = __littleFsSymlink;
+    fileop.fo_readlink = __littleFsReadlink;
 
     _G_iLittleFsDrvNum = iosDrvInstallEx2(&fileop, LW_DRV_TYPE_NEW_1);     /*  使用 NEW_1 型设备驱动程序   */
 
@@ -186,7 +186,10 @@ static LONG __littleFsOpen(PLFS_VOLUME     pfs,
     PLW_FD_NODE         pfdnode;
     PLFS_NODE           plfsn;
     struct stat         statGet;
+    BOOL                broot;
     BOOL                bIsNew;
+
+    printf("__littleFsOpen() begin: iFlags: %08x; iMode: %08x \r\n", iFlags, iMode);
 
     if (pcName == LW_NULL) {                                             /*        无文件名              */
         _ErrorHandle(ERROR_IO_NO_DEVICE_NAME_IN_PATH);
@@ -214,41 +217,49 @@ static LONG __littleFsOpen(PLFS_VOLUME     pfs,
 
     /************************************ TODO ************************************/
 
-    /* 首先判断是否是文件系统根目录 */
-    bool broot = FALSE;
-    if (*pcName == PX_ROOT) {                                          /*         忽略根符号           */
-        if (pcName[1] == PX_EOS) broot= TRUE;
-        else broot = FALSE;
-    } else {
-        if (pcName[0] == PX_EOS) broot= TRUE;
-        else broot = FALSE;
-    }
-
-    plfsn = __lfs_open(pfs, pcName, iFlags, iMode);                    /*    以非创建的形式打开文件     */
-    // printf("plfsn:%d\n",(int)plfsn);
+    plfsn = __lfs_open(pfs, pcName, iFlags, iMode, &broot);             /*    以非创建的形式打开文件     */
+    printf("plfsn:%d\n",(int)plfsn);
 
     if (!plfsn){
-        if (iFlags & O_CREAT){                                         /*      文件不存在，则创建       */
+        if (iFlags & O_CREAT){                                          /*      文件不存在，则创建       */
             if (__fsCheckFileName(pcName)) {
-                // printf("open with make, __fsCheckFileName() failed!\r\n");
+                 printf("open with make, __fsCheckFileName() failed!\r\n");
                 _ErrorHandle(ENOENT);
                 return  (PX_ERROR);
             }
-            plfsn = __lfs_maken(pfs, pcName, iFlags, iMode);           /*     创建文件或目录节点       */
+            plfsn = __lfs_maken(pfs, pcName, iMode, NULL);            /*     创建文件或目录节点       */
             if ( plfsn == NULL ) {
-                // printf("in __LittleFsOpen(), _fs_maken failed!\r\n");
+                 printf("in __LittleFsOpen(), _fs_maken failed!\r\n");
                 return  (PX_ERROR);
             } else{
-                // printf("in __LittleFsOpen(), _fs_maken success!\r\n");
+                 printf("in __LittleFsOpen(), _fs_maken success!\r\n");
+                 goto    __file_open_ok;
             }
         }else{
             __LFS_VOL_UNLOCK(pfs);
-            // printf("__littleFsOpen() end without a node add ############################\r\n\r\n");
+             printf("__littleFsOpen() end without a node add ############################\r\n\r\n");
             return  (PX_ERROR);
         }
+    } else {
+        if (!S_ISLNK(plfsn->LFSN_mode)) {
+            if ((iFlags & O_CREAT) && (iFlags & O_EXCL)) {              /*  排他创建文件                */
+                __LFS_VOL_UNLOCK(pfs);
+                _ErrorHandle(EEXIST);                                   /*  已经存在文件                */
+                return  (PX_ERROR);
+            
+            } else if ((iFlags & O_DIRECTORY) && !S_ISDIR(plfsn->LFSN_mode)) {
+                __LFS_VOL_UNLOCK(pfs);
+                _ErrorHandle(ENOTDIR);
+                return  (PX_ERROR);
+            
+            } else {
+                goto    __file_open_ok;
+            }
+        } 
     }
-             
 
+
+__file_open_ok:
     __lfs_stat(plfsn, pfs, &statGet);
     pfdnode = API_IosFdNodeAdd(&pfs->LFS_plineFdNodeHeader,            /*        添加文件节点          */
                                statGet.st_dev,
@@ -278,7 +289,7 @@ static LONG __littleFsOpen(PLFS_VOLUME     pfs,
     LW_DEV_INC_USE_COUNT(&pfs->LFS_devhdrHdr);                          /*        更新计数器            */
 
     __LFS_VOL_UNLOCK(pfs);
-    // printf("__littleFsOpen end and add node ############################\r\n\r\n");
+    printf("__littleFsOpen end and add node ############################\r\n\r\n");
     return  (pfdnode);                                                  /*        返回文件节点          */
 }
 
@@ -374,7 +385,7 @@ static INT  __littleFsClose (PLW_FD_ENTRY    pfdentry)
     PLW_FD_NODE   pfdnode = (PLW_FD_NODE)pfdentry->FDENTRY_pfdnode ;
     PLFS_NODE     plfsn   = (PLFS_NODE)  pfdnode->FDNODE_pvFile    ;
     PLFS_VOLUME   pfs     = (PLFS_VOLUME)pfdnode->FDNODE_pvFsExtern;
-    BOOL          bRemove = FALSE;
+    BOOL          bRemove = TRUE;
 
 
     if (__LFS_VOL_LOCK(pfs) != ERROR_NONE) {                              /*        设备出错            */
@@ -384,21 +395,24 @@ static INT  __littleFsClose (PLW_FD_ENTRY    pfdentry)
 
     if (API_IosFdNodeDec(&pfs->LFS_plineFdNodeHeader,
                          pfdnode, &bRemove) == 0) {
-        if (plfsn) 
-        if (plfsn->isfile){
-            lfs_file_close(&pfs->lfst, &plfsn->lfsfile);
-        }else{
-            lfs_dir_close(&pfs->lfst, &plfsn->lfsdir);
+        if (plfsn){
+            if (plfsn->isfile){
+                lfs_file_close(&pfs->lfst, &plfsn->lfsfile);
+            }else{
+                lfs_dir_close(&pfs->lfst, &plfsn->lfsdir);
+            }
         }
     }
 
     LW_DEV_DEC_USE_COUNT(&pfs->LFS_devhdrHdr);
 
-    if (bRemove && plfsn) __lfs_unlink(plfsn);
+    if (bRemove && plfsn) {
+        __lfs_unlink(plfsn);
+    }
 
     __LFS_VOL_UNLOCK(pfs);
 
-    // printf("__littleFsClose end ################## \r\n\r\n");
+    printf("__littleFsClose end ################## \r\n\r\n");
     return  (ERROR_NONE);
 }
 
@@ -456,7 +470,7 @@ static ssize_t  __littleFsRead (PLW_FD_ENTRY pfdentry,
     }
 
     __LFS_FILE_UNLOCK(plfsn);
-
+    printf("__littleFsRead end ############################\r\n\r\n");
     return  (sstReadNum);
 }
 
@@ -513,7 +527,7 @@ static ssize_t  __littleFsPRead (PLW_FD_ENTRY pfdentry,
     }
 
     __LFS_FILE_UNLOCK(plfsn);
-
+    printf("__littleFsPRead end ###########################\r\n\r\n");
     return  (sstReadNum);
 }
 
@@ -576,7 +590,7 @@ static ssize_t  __littleFsWrite (PLW_FD_ENTRY  pfdentry,
     }
 
     __LFS_FILE_UNLOCK(plfsn);
-
+    printf("__littleFsWrite end ############################\r\n\r\n");
     return  (sstWriteNum);
 }
 
@@ -638,7 +652,7 @@ static ssize_t  __littleFsPWrite (PLW_FD_ENTRY  pfdentry,
     }
 
     __LFS_FILE_UNLOCK(plfsn);
-
+    printf("__littleFsPWrite end ############################\r\n\r\n");
     return  (sstWriteNum);
 }
 
@@ -680,7 +694,7 @@ static INT  __littleFsNRead (PLW_FD_ENTRY  pfdentry, INT  *piNRead)
     *piNRead = (INT)(plfsn->LFSN_stSize - (size_t)pfdentry->FDENTRY_oftPtr);
 
     __LFS_FILE_UNLOCK(plfsn);
-
+    printf("__littleFsNRead end ############################\r\n\r\n");
     return  (ERROR_NONE);
 }
 
@@ -717,7 +731,7 @@ static INT  __littleFsNRead64 (PLW_FD_ENTRY  pfdentry, off_t  *poftNRead)
     *poftNRead = (off_t)(plfsn->LFSN_stSize - (size_t)pfdentry->FDENTRY_oftPtr);
 
     __LFS_FILE_UNLOCK(plfsn);
-
+    printf("__littleFsNRead64 end ############################\r\n\r\n");
     return  (ERROR_NONE);
 }
 
@@ -764,7 +778,7 @@ static INT  __littleFsSeek (PLW_FD_ENTRY  pfdentry,
     }
 
     __LFS_FILE_UNLOCK(plfsn);
-
+    printf("__littleFsSeek end ############################\r\n\r\n");
     return  (ERROR_NONE);
 }
 /*********************************************************************************************************
@@ -813,7 +827,7 @@ static INT  __littleFsStat (PLW_FD_ENTRY  pfdentry, struct stat *pstat)
     __lfs_stat(plfsn, pfs, pstat);
 
     __LFS_VOL_UNLOCK(pfs);
-
+    printf("__littleFsWhere end ############################\r\n\r\n");
     return  (ERROR_NONE);
 }
 
@@ -853,7 +867,7 @@ static INT  __littleFsLStat(PLFS_VOLUME  pfs, PCHAR  pcName, struct stat* pstat)
     }
 
     __LFS_VOL_UNLOCK(pfs);
-
+    printf("__littleFsLStat end ############################\r\n\r\n");
     return  (ERROR_NONE);
 }
 
@@ -884,7 +898,7 @@ static INT  __littleFsStatfs (PLW_FD_ENTRY  pfdentry, struct statfs *pstatfs)
     __lfs_statfs(pfs, pstatfs);
 
     __LFS_VOL_UNLOCK(pfs);
-
+    printf("__littleFsStatfs end ############################\r\n\r\n");
     return  (ERROR_NONE);
 }
 
@@ -923,7 +937,7 @@ static INT  __littleFsTimeset (PLW_FD_ENTRY  pfdentry, struct utimbuf  *utim)
     }
 
     __LFS_VOL_UNLOCK(pfs);
-
+    printf("__littleFsTimeset end ############################\r\n\r\n");
     return  (ERROR_NONE);
 }
 
@@ -954,7 +968,7 @@ static INT  __littleFsReadDir (PLW_FD_ENTRY  pfdentry, DIR  *dir)
 
     /**************************************** TODO *******************************************/
     if (plfsn == LW_NULL) {
-        // printf("ERROR: plfsn is NULL!\r\n");
+         printf("ERROR: plfsn is NULL!\r\n");
         __LFS_VOL_UNLOCK(plfs);
         return (PX_ERROR);
     } else {
@@ -970,9 +984,9 @@ static INT  __littleFsReadDir (PLW_FD_ENTRY  pfdentry, DIR  *dir)
     if(!plfsn->isfile){
         dirreaderr = lfs_dir_read(&plfs->lfst, &plfsn->lfsdir, &lfsdirinfo);
         if(dirreaderr>0){
-            // printf("dir read success in %d! %d\r\n",plfsn->lfsdir.pos,dirreaderr);
+             printf("dir read success in %d! %d\r\n",plfsn->lfsdir.pos,dirreaderr);
         }else if(dirreaderr<0){
-            // printf("ERROR: dir read fail in %d! type:%08x\r\n",plfsn->lfsdir.pos,lfsdirinfo.type);
+             printf("ERROR: dir read fail in %d! type:%08x\r\n",plfsn->lfsdir.pos,lfsdirinfo.type);
             __LFS_VOL_UNLOCK(plfs);
             return (PX_ERROR);
         }else{
@@ -981,23 +995,23 @@ static INT  __littleFsReadDir (PLW_FD_ENTRY  pfdentry, DIR  *dir)
             return (PX_ERROR);
         }
     }else{
-        // printf("ERROR: plfsn is a file!\r\n");
+         printf("ERROR: plfsn is a file!\r\n");
         __LFS_VOL_UNLOCK(plfs);
         return (PX_ERROR);
     }
 
-    // printf("dir->dir_pos: %ld", dir->dir_pos);
+     printf("dir->dir_pos: %ld", dir->dir_pos);
     dir->dir_pos++;
     
     lib_strlcpy(dir->dir_dirent.d_name, 
                 lfsdirinfo.name,
                 sizeof(dir->dir_dirent.d_name));
                 
-    dir->dir_dirent.d_type = type_lfs2sylix(lfsdirinfo.type);
+    dir->dir_dirent.d_type = genSylixMode(lfsdirinfo.type,0);
     dir->dir_dirent.d_shortname[0] = PX_EOS;
 
     __LFS_VOL_UNLOCK(plfs);
-    
+    printf("__littleFsReadDir end!\r\n");
     return  (ERROR_NONE);
 }
 
@@ -1022,7 +1036,7 @@ static INT  __littleFsRename (PLW_FD_ENTRY  pfdentry, PCHAR  pcNewName)
     
     if (plfsn == LW_NULL) {                                             /*  检查是否为设备文件          */
         _ErrorHandle(ERROR_IOS_DRIVER_NOT_SUP);                         /*  不支持设备重命名            */
-        return (PX_ERROR);
+        return (PX_ERROR);90
     }
     
     if (pcNewName == LW_NULL) {
@@ -1051,7 +1065,7 @@ static INT  __littleFsRename (PLW_FD_ENTRY  pfdentry, PCHAR  pcNewName)
         return  (PX_ERROR);
     }
     
-    if (plfsNew != plfs) {                                          /*  必须为同一设备节点          */
+    if (plfsNew != plfs) {                                             /*  必须为同一设备节点          */
         __LFS_FILE_UNLOCK(plfsn);
         _ErrorHandle(EXDEV);
         return  (PX_ERROR);
@@ -1060,8 +1074,114 @@ static INT  __littleFsRename (PLW_FD_ENTRY  pfdentry, PCHAR  pcNewName)
     iError = lfs_rename(&plfs->lfst, cOldPath, cNewPath);
     
     __LFS_FILE_UNLOCK(plfsn);
-    
+    printf("__littleFsRename end ############################\r\n\r\n");
     return  (iError);
+}
+
+/*********************************************************************************************************
+** 函数名称: __littleFsSymlink
+** 功能描述: lfsFs 创建符号链接文件
+** 输　入  : plfs              romfs 文件系统
+**           pcName              链接原始文件名
+**           pcLinkDst           链接目标文件名
+**           stMaxSize           缓冲大小
+** 输　出  : < 0 表示错误
+** 全局变量:
+** 调用模块:
+*********************************************************************************************************/
+static INT  __littleFsSymlink (PLFS_VOLUME   plfs,
+                            PCHAR         pcName,
+                            CPCHAR        pcLinkDst)
+{
+    PLFS_NODE     plfsn;
+    BOOL          broot = FALSE;
+    
+    if (!pcName || !pcLinkDst) {
+        _ErrorHandle(EINVAL);
+        return  (PX_ERROR);
+    }
+    
+    if (__fsCheckFileName(pcName)) {
+        _ErrorHandle(EINVAL);
+        return  (PX_ERROR);
+    }
+    
+    if (__LFS_VOL_LOCK(plfs) != ERROR_NONE) {
+        _ErrorHandle(ENXIO);
+        return  (PX_ERROR);
+    }
+    
+    plfsn = __lfs_open(plfs, pcName, LW_NULL, LW_NULL, &broot);
+    if (plfsn || broot) {
+        __LFS_VOL_UNLOCK(plfs);
+        _ErrorHandle(EEXIST);
+        return  (PX_ERROR);
+    }
+    
+    plfsn = __lfs_maken(plfs, pcName, S_IFLNK | DEFAULT_SYMLINK_PERM, pcLinkDst);
+    if (plfsn == LW_NULL) {
+        __LFS_VOL_UNLOCK(plfs);
+        return  (PX_ERROR);
+    }
+
+    /* 这里与RAMFS的创建链接文件不同：
+       在LFS里链接文件本质是普通REG文件 + 链接地址属性，故需要关闭这个文件 */
+    if (plfsn->isfile){
+       lfs_file_close(&plfs->lfst, &plfsn->lfsfile);
+    }else{
+        lfs_dir_close(&plfs->lfst, &plfsn->lfsdir);
+    }
+    
+    __LFS_VOL_UNLOCK(plfs);
+    printf("__littleFsSymlink end ############################\r\n\r\n");
+    return  (ERROR_NONE);
+}
+
+/*********************************************************************************************************
+** 函数名称: __lfsFsReadlink
+** 功能描述: lfsFs 读取符号链接文件内容
+** 输　入  : plfs              romfs 文件系统
+**           pcName              链接原始文件名
+**           pcLinkDst           链接目标文件名
+**           stMaxSize           缓冲大小
+** 输　出  : < 0 表示错误
+** 全局变量:
+** 调用模块:
+*********************************************************************************************************/
+static ssize_t __littleFsReadlink (PLFS_VOLUME   plfs,
+                                PCHAR         pcName,
+                                PCHAR         pcLinkDst,
+                                size_t        stMaxSize)
+{
+    PLFS_NODE   plfsn;
+    size_t      stLen;
+    BOOL        broot;
+    
+    if (!pcName || !pcLinkDst || !stMaxSize) {
+        _ErrorHandle(EINVAL);
+        return  (PX_ERROR);
+    }
+    
+    if (__LFS_VOL_LOCK(plfs) != ERROR_NONE) {
+        _ErrorHandle(ENXIO);
+        return  (PX_ERROR);
+    }
+    
+    CHAR pcLink[256];
+    int getattr = lfs_getattr(&plfs->lfst, pcName, LFS_TYPE_SLINK,
+                                      (PCHAR)pcLink, 256);
+    
+    stLen = getattr;
+    
+    lib_strncpy(pcLinkDst, (PCHAR)pcLink, stMaxSize);
+    
+    if (stLen > stMaxSize) {
+        stLen = stMaxSize;                                              /*  计算有效字节数              */
+    }
+    
+    __LFS_VOL_UNLOCK(plfs);
+    printf("__littleFsReadlink end ############################\r\n\r\n");
+    return  ((ssize_t)stLen);
 }
 
 /*********************************************************************************************************
