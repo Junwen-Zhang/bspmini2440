@@ -55,7 +55,7 @@
 //#include "extfs/spifFs/spifFs.h"                                        /*  Spiffs文件驱动接口 - PYQ */
 //#include "extfs/tools/list/common.h"                                    /*  链表模板测试 - PYQ */
 //#include "extfs/tools/fstester/fstester.h"                              /*  fstester - PYQ */
-#include "extfs/littleFs/lfs_port.h"
+#include "extfs/clFs/clfs_port.h"
 /*********************************************************************************************************
   操作系统符号表
 *********************************************************************************************************/
@@ -235,7 +235,7 @@ static VOID  halDrvInit (VOID)
     canDrv();                                                           /*  CAN    device driver        */
     
 //    API_HoitFsDrvInstall();                                             /*  挂载HoitFS文件系统       */
-    API_LittleFsDrvInstall();                                           /*  挂载LittleFS文件系统 */
+    API_ClFsDrvInstall();                                           /*  挂载ClFS文件系统 */
 //    API_SpifFsDrvInstall();                                             /*  挂载SpifFS文件系统       */
     s3c2440GpioDrv();
 

@@ -59,9 +59,9 @@ SylixOS/driver/touchscr/s3c_onewire.c \
 SylixOS/driver/touchscr/touchscr.c \
 SylixOS/driver/tty/samsungtty.c \
 SylixOS/driver/tty/uart.c \
-SylixOS/extfs/littleFs/lfs.c \
-SylixOS/extfs/littleFs/lfs_port.c \
-SylixOS/extfs/littleFs/lfs_util.c \
+SylixOS/extfs/clFs/clfs.c \
+SylixOS/extfs/clFs/clfs_port.c \
+SylixOS/extfs/clFs/clfs_util.c \
 SylixOS/user/main.c
 
 #*********************************************************************************************************

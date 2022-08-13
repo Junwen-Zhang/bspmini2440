@@ -21,12 +21,12 @@
 		<pathentry kind="mac" name="__BOOT_INRAM" path="" value="1"/>
 		<pathentry base-ref="bspmini2440" include="SylixOS" kind="inc" path="" system="true"/>
 		<pathentry base-ref="bspmini2440" include="SylixOS/bsp" kind="inc" path="" system="true"/>
-		<pathentry base-ref="bspmini2440" include="C:/Sylix_workspace/BASE0802/libsylixos/SylixOS" kind="inc" path="" system="true"/>
-		<pathentry base-ref="bspmini2440" include="C:/Sylix_workspace/BASE0802/libsylixos/SylixOS/include" kind="inc" path="" system="true"/>
-		<pathentry base-ref="bspmini2440" include="C:/Sylix_workspace/BASE0802/libcextern/libcextern/include" kind="inc" path="" system="true"/>
+		<pathentry base-ref="bspmini2440" include="C:/Users/June/workspace/base0629/libsylixos/SylixOS" kind="inc" path="" system="true"/>
+		<pathentry base-ref="bspmini2440" include="C:/Users/June/workspace/base0629/libsylixos/SylixOS/include" kind="inc" path="" system="true"/>
+		<pathentry base-ref="bspmini2440" include="C:/Users/June/workspace/base0629/libcextern/libcextern/include" kind="inc" path="" system="true"/>
 		<pathentry base-ref="bspmini2440" include="C:/ACOINFO/RealEvo/compiler/arm-sylixos-toolchain/lib/gcc/arm-sylixos-eabi/4.9.3/include" kind="inc" path="" system="true"/>
 		<pathentry base-ref="bspmini2440" include="C:/ACOINFO/RealEvo/compiler/arm-sylixos-toolchain/arm-sylixos-eabi/include" kind="inc" path="" system="true"/>
-		<pathentry base-ref="bspmini2440" include="C:/Sylix_workspace/BASE0802/libsylixos/SylixOS/include/network" kind="inc" path="" system="true"/>
+		<pathentry base-ref="bspmini2440" include="C:/Users/June/workspace/base0629/libsylixos/SylixOS/include/network" kind="inc" path="" system="true"/>
 		<pathentry excluding="obj|dep" kind="out" path="Debug"/>
 		<pathentry excluding="obj|dep" kind="out" path="Release"/>
 	</storageModule>
